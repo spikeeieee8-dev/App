@@ -123,4 +123,33 @@ export const api = {
         body: JSON.stringify({ variantIds }),
       }, true),
   },
+
+  settings: {
+    getPublic: () => request<{ settings: Record<string, string> }>("/settings/public"),
+    getAll: () => request<{ settings: Record<string, string> }>("/settings", {}, true),
+    update: (key: string, value: string) =>
+      request<{ setting: any }>(`/settings/${key}`, {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      }, true),
+  },
+
+  upload: {
+    uploadFile: async (fileUri: string, fileName: string, mimeType: string, folder = "products"): Promise<{ url: string }> => {
+      const base = getApiBase();
+      const token = await AsyncStorage.getItem("auth_token");
+      const formData = new FormData();
+      formData.append("file", { uri: fileUri, name: fileName, type: mimeType } as any);
+      const res = await fetch(`${base}/upload?folder=${folder}`, {
+        method: "POST",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      return data;
+    },
+  },
 };

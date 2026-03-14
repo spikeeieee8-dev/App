@@ -222,11 +222,12 @@ export default function AdminDashboard() {
           </View>
         )}
 
-        <View style={styles.actionsRow}>
+        <View style={styles.actionsGrid}>
           {[
             { icon: "package", label: "Orders", route: "/admin/orders", color: "#3498DB" },
             { icon: "tag", label: "Products", route: "/admin/products", color: Colors.gold },
             { icon: "users", label: "Users", route: "/admin/users", color: Colors.successGreen },
+            { icon: "settings", label: "Payments", route: "/admin/settings", color: "#9B59B6" },
           ].map((a) => (
             <Pressable
               key={a.label}
@@ -325,10 +326,11 @@ const styles = StyleSheet.create({
   topProductStats: { alignItems: "flex-end" },
   topProductRevenue: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
   topProductUnits: { fontFamily: "Inter_400Regular", fontSize: 10 },
+  actionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: 12, marginBottom: 10 },
   actionsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 12, marginBottom: 10 },
   actionCard: {
-    flex: 1, flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 14, borderWidth: 1, padding: 16,
+    width: "47%", flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, borderWidth: 1, padding: 14,
   },
   actionIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   actionLabel: { fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 },

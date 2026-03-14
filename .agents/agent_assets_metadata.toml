@@ -18,3 +18,9 @@ id = "cRlRcgSqvENn0ulU9Pxq_"
 uri = "file://ALMERA_COMPLETE_GUIDE.md"
 type = "text"
 title = "Almera — Complete Setup, API & Deployment Guide"
+
+[[outputs]]
+id = "dvXdj1K1dbPwxruTEH3Wp"
+uri = "file://DEPLOYMENT_GUIDE.md"
+type = "text"
+title = "Almera — Full Deployment Guide"

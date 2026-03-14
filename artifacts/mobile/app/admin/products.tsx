@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -12,6 +14,7 @@ import {
   TextInput,
   View,
   useColorScheme,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -33,6 +36,18 @@ const BLANK: NewProduct = {
   originalPrice: "", discountedPrice: "", costPrice: "",
 };
 
+function confirmDelete(message: string): Promise<boolean> {
+  if (Platform.OS === "web") {
+    return Promise.resolve(window.confirm(message));
+  }
+  return new Promise((resolve) => {
+    Alert.alert("Delete Product", message, [
+      { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+      { text: "Delete", style: "destructive", onPress: () => resolve(true) },
+    ]);
+  });
+}
+
 export default function AdminProductsScreen() {
   const { products, isDarkMode } = useApp();
   const colorScheme = useColorScheme();
@@ -48,6 +63,9 @@ export default function AdminProductsScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [localDeleted, setLocalDeleted] = useState<Set<string>>(new Set());
 
+  const [mediaItems, setMediaItems] = useState<{ uri: string; type: "image" | "video"; name: string; mimeType: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   const filtered = products
     .filter((p) => !localDeleted.has(p.id))
     .filter((p) => {
@@ -57,13 +75,51 @@ export default function AdminProductsScreen() {
       return true;
     });
 
+  const handlePickMedia = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission needed", "Please allow access to your media library.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsMultipleSelection: true,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const newItems = result.assets.map((a) => ({
+        uri: a.uri,
+        type: (a.type === "video" ? "video" : "image") as "image" | "video",
+        name: a.fileName || `media_${Date.now()}`,
+        mimeType: a.mimeType || (a.type === "video" ? "video/mp4" : "image/jpeg"),
+      }));
+      setMediaItems((prev) => [...prev, ...newItems].slice(0, 5));
+    }
+  };
+
+  const removeMedia = (idx: number) => {
+    setMediaItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const handleCreate = async () => {
     if (!form.name.trim() || !form.originalPrice || !form.discountedPrice || !form.costPrice) {
       Alert.alert("Missing Fields", "Name and all prices are required.");
       return;
     }
     setSaving(true);
+    setUploading(mediaItems.length > 0);
     try {
+      const uploadedUrls: string[] = [];
+      for (const item of mediaItems) {
+        try {
+          const { url } = await api.upload.uploadFile(item.uri, item.name, item.mimeType, "products");
+          uploadedUrls.push(url);
+        } catch {
+          Alert.alert("Warning", `Failed to upload ${item.name}. Product will be saved without it.`);
+        }
+      }
+      setUploading(false);
+
       await api.products.create({
         name: form.name.trim(),
         description: form.description.trim(),
@@ -74,37 +130,34 @@ export default function AdminProductsScreen() {
         costPrice: Number(form.costPrice),
         variants: [],
         tags: [],
+        images: uploadedUrls,
         isNew: true,
         isFeatured: false,
       });
       setShowCreate(false);
       setForm(BLANK);
+      setMediaItems([]);
       Alert.alert("Success", "Product created. Refresh to see it in the list.");
     } catch (e: any) {
+      setUploading(false);
       Alert.alert("Error", e.message || "Failed to create product");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = (id: string, name: string) => {
-    Alert.alert("Delete Product", `Remove "${name}" from the store?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete", style: "destructive",
-        onPress: async () => {
-          setDeletingId(id);
-          try {
-            await api.products.delete(id);
-            setLocalDeleted((prev) => new Set([...prev, id]));
-          } catch (e: any) {
-            Alert.alert("Error", e.message || "Failed to delete product");
-          } finally {
-            setDeletingId(null);
-          }
-        },
-      },
-    ]);
+  const handleDelete = async (id: string, name: string) => {
+    const confirmed = await confirmDelete(`Remove "${name}" from the store?`);
+    if (!confirmed) return;
+    setDeletingId(id);
+    try {
+      await api.products.delete(id);
+      setLocalDeleted((prev) => new Set([...prev, id]));
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to delete product");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -149,11 +202,16 @@ export default function AdminProductsScreen() {
           const isLowStock = product.variants.some((v) => v.stock <= 5);
           const sizes = [...new Set(product.variants.map((v) => v.size))];
           const isDeleting = deletingId === product.id;
+          const firstImage = product.images?.[0];
 
           return (
             <View key={product.id} style={[styles.productRow, { backgroundColor: theme.card, borderColor: isLowStock ? Colors.errorRed + "40" : theme.border }]}>
-              <View style={[styles.productImage, { backgroundColor: isDark ? Colors.charcoalMid : Colors.cream }]}>
-                <Feather name="image" size={20} color={Colors.mutedGray} />
+              <View style={[styles.productImageBox, { backgroundColor: isDark ? Colors.charcoalMid : Colors.cream }]}>
+                {firstImage ? (
+                  <Image source={{ uri: firstImage }} style={styles.productImg} resizeMode="cover" />
+                ) : (
+                  <Feather name="image" size={20} color={Colors.mutedGray} />
+                )}
                 {isLowStock && <View style={styles.lowStockDot} />}
               </View>
               <View style={styles.productInfo}>
@@ -185,7 +243,10 @@ export default function AdminProductsScreen() {
                 style={[styles.deleteBtn, { opacity: isDeleting ? 0.4 : 1 }]}
                 onPress={() => !isDeleting && handleDelete(product.id, product.name)}
               >
-                <Feather name="trash-2" size={15} color={Colors.errorRed} />
+                {isDeleting
+                  ? <ActivityIndicator size="small" color={Colors.errorRed} />
+                  : <Feather name="trash-2" size={15} color={Colors.errorRed} />
+                }
               </Pressable>
             </View>
           );
@@ -195,7 +256,7 @@ export default function AdminProductsScreen() {
       <Modal visible={showCreate} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowCreate(false)}>
         <View style={[styles.modalContainer, { backgroundColor: theme.background }]}>
           <View style={[styles.modalHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-            <Pressable onPress={() => { setShowCreate(false); setForm(BLANK); }}>
+            <Pressable onPress={() => { setShowCreate(false); setForm(BLANK); setMediaItems([]); }}>
               <Text style={[styles.modalCancel, { color: theme.textSecondary }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.modalTitle, { color: theme.text }]}>New Product</Text>
@@ -224,6 +285,7 @@ export default function AdminProductsScreen() {
                 />
               </View>
             ))}
+
             <View style={styles.formField}>
               <Text style={[styles.formLabel, { color: theme.textSecondary }]}>Category *</Text>
               <View style={styles.categoryRow}>
@@ -237,6 +299,43 @@ export default function AdminProductsScreen() {
                   </Pressable>
                 ))}
               </View>
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={[styles.formLabel, { color: theme.textSecondary }]}>Photos & Videos (up to 5)</Text>
+              {uploading && (
+                <View style={[styles.uploadingBanner, { backgroundColor: Colors.gold + "18" }]}>
+                  <ActivityIndicator size="small" color={Colors.gold} />
+                  <Text style={[styles.uploadingText, { color: Colors.gold }]}>Uploading media…</Text>
+                </View>
+              )}
+              <View style={styles.mediaGrid}>
+                {mediaItems.map((item, idx) => (
+                  <View key={idx} style={styles.mediaThumbnailWrap}>
+                    <Image source={{ uri: item.uri }} style={styles.mediaThumbnail} resizeMode="cover" />
+                    {item.type === "video" && (
+                      <View style={styles.videoOverlay}>
+                        <Feather name="play" size={16} color="#fff" />
+                      </View>
+                    )}
+                    <Pressable style={styles.mediaRemoveBtn} onPress={() => removeMedia(idx)}>
+                      <Feather name="x" size={12} color="#fff" />
+                    </Pressable>
+                  </View>
+                ))}
+                {mediaItems.length < 5 && (
+                  <Pressable
+                    style={[styles.addMediaBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                    onPress={handlePickMedia}
+                  >
+                    <Feather name="plus" size={24} color={Colors.gold} />
+                    <Text style={[styles.addMediaText, { color: Colors.gold }]}>Add</Text>
+                  </Pressable>
+                )}
+              </View>
+              <Text style={[styles.mediaHint, { color: theme.textSecondary }]}>
+                Images and videos are uploaded to cloud storage when you save.
+              </Text>
             </View>
           </ScrollView>
         </View>
@@ -265,10 +364,11 @@ const styles = StyleSheet.create({
     flexDirection: "row", marginHorizontal: 16, marginTop: 10,
     borderRadius: 14, borderWidth: 1, padding: 12, gap: 12, alignItems: "flex-start",
   },
-  productImage: {
+  productImageBox: {
     width: 64, height: 72, borderRadius: 10,
-    alignItems: "center", justifyContent: "center", position: "relative",
+    alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden",
   },
+  productImg: { width: "100%", height: "100%" },
   lowStockDot: { position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.errorRed },
   productInfo: { flex: 1 },
   productTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 },
@@ -300,4 +400,26 @@ const styles = StyleSheet.create({
   categoryRow: { flexDirection: "row", gap: 10 },
   categoryChip: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 10, borderWidth: 1 },
   categoryChipText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  uploadingBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 8, marginBottom: 8 },
+  uploadingText: { fontFamily: "Inter_500Medium", fontSize: 13 },
+  mediaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 6 },
+  mediaThumbnailWrap: { width: 80, height: 80, borderRadius: 10, overflow: "hidden", position: "relative" },
+  mediaThumbnail: { width: "100%", height: "100%" },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    alignItems: "center", justifyContent: "center",
+  },
+  mediaRemoveBtn: {
+    position: "absolute", top: 4, right: 4,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center", justifyContent: "center",
+  },
+  addMediaBtn: {
+    width: 80, height: 80, borderRadius: 10, borderWidth: 1.5,
+    borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 4,
+  },
+  addMediaText: { fontFamily: "Inter_600SemiBold", fontSize: 11 },
+  mediaHint: { fontFamily: "Inter_400Regular", fontSize: 11, lineHeight: 16 },
 });

@@ -35,7 +35,7 @@ artifacts/
       (tabs)/         Home, Shop, Cart, Orders, Profile
       auth/           login.tsx, register.tsx
       account/        edit.tsx (profile editing + password change)
-      admin/          index.tsx, login.tsx, orders.tsx, products.tsx, users.tsx
+      admin/          index.tsx, login.tsx, orders.tsx, products.tsx, users.tsx, settings.tsx (payment settings)
       product/[id]    Product detail screen
       order/[id]      Order detail screen with status timeline
       checkout.tsx    Checkout flow
@@ -50,7 +50,7 @@ artifacts/
       colors.ts       Light (white) + dark theme tokens + brand colors
 lib/
   db/                 Shared Drizzle schema + migrations
-    src/schema/       users, products, product_variants, orders, order_items, addresses, analytics_events
+    src/schema/       users, products, product_variants, orders, order_items, addresses, analytics_events, settings
 ```
 
 ## Database Schema (PostgreSQL via Drizzle ORM)
@@ -62,6 +62,7 @@ lib/
 - **order_items** — orderId FK, productId FK, productName, size, color, quantity, price
 - **addresses** — userId FK, saved shipping addresses
 - **analytics_events** — userId, eventType, payload (jsonb)
+- **settings** — key (PK varchar), value (text) — stores easypaisa_number, easypaisa_name, easypaisa_qr_url
 
 ## API Endpoints
 
@@ -71,7 +72,9 @@ lib/
 - `GET /api/products/:id` / `POST /api/products` / `PUT /api/products/:id` / `DELETE /api/products/:id`
 - `GET /api/orders` / `POST /api/orders` / `GET /api/orders/:id` / `PUT /api/orders/:id/status`
 - `GET /api/analytics` / `GET /api/analytics/users`
-- `POST /api/upload` — multipart image upload to Cloudflare R2
+- `POST /api/upload` — multipart image/video upload to Cloudflare R2 (field name: `file`)
+- `GET /api/settings/public` — public Easypaisa settings (no auth)
+- `GET /api/settings` / `PUT /api/settings/:key` — admin-only settings management
 - `GET /metrics` — Prometheus metrics
 
 ## Theme System
@@ -82,7 +85,7 @@ lib/
 
 ## Auth System
 
-- **Admin credentials**: admin@almera.pk / admin123 (seeded in PostgreSQL)
+- **Admin credentials**: spikee@almerafashion.store / asadtanoli0/ (seeded in PostgreSQL)
 - JWT tokens expire in 7 days
 - Rate limit: 20 login attempts per 15 minutes
 

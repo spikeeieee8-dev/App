@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import React from "react";
 import {
-  Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme,
+  Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -58,7 +58,11 @@ export default function CartScreen() {
               return (
                 <View key={key} style={[styles.cartItem, { backgroundColor: theme.card, borderColor: theme.border }]}>
                   <View style={[styles.imagePlaceholder, { backgroundColor: isDark ? Colors.charcoalMid : Colors.cream }]}>
-                    <Feather name="image" size={22} color={Colors.mutedGray} />
+                    {item.product.images?.[0] ? (
+                      <Image source={{ uri: item.product.images[0] }} style={styles.itemImage} resizeMode="cover" />
+                    ) : (
+                      <Feather name="image" size={22} color={Colors.mutedGray} />
+                    )}
                   </View>
                   <View style={styles.itemInfo}>
                     <Text style={[styles.itemName, { color: theme.text }]} numberOfLines={2}>{item.product.name}</Text>
@@ -146,7 +150,8 @@ const styles = StyleSheet.create({
     flexDirection: "row", marginHorizontal: 14, marginTop: 10,
     borderRadius: 14, borderWidth: 1, padding: 12, gap: 12,
   },
-  imagePlaceholder: { width: 72, height: 84, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  imagePlaceholder: { width: 72, height: 84, borderRadius: 10, justifyContent: "center", alignItems: "center", overflow: "hidden" },
+  itemImage: { width: "100%", height: "100%" },
   itemInfo: { flex: 1 },
   itemName: { fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 6, lineHeight: 18 },
   variantRow: { flexDirection: "row", gap: 5, marginBottom: 8 },

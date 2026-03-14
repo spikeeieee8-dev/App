@@ -8,17 +8,17 @@ const router = Router();
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
+    if (file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
       cb(null, true);
     } else {
-      cb(new Error("Only image files are allowed"));
+      cb(new Error("Only image or video files are allowed"));
     }
   },
 });
 
-router.post("/", requireAdmin, upload.single("image"), async (req, res) => {
+router.post("/", requireAdmin, upload.single("file"), async (req, res) => {
   try {
     if (!isR2Configured()) {
       res.status(503).json({
@@ -28,7 +28,7 @@ router.post("/", requireAdmin, upload.single("image"), async (req, res) => {
     }
 
     if (!req.file) {
-      res.status(400).json({ error: "No image file provided" });
+      res.status(400).json({ error: "No file provided" });
       return;
     }
 
