@@ -6,7 +6,7 @@ const getDomain = () => {
   return domain;
 };
 
-export const getApiBase = () => `https://${getDomain()}/api-server/api`;
+export const getApiBase = () => `https://${getDomain()}/api`;
 
 async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem("auth_token");
