@@ -16,6 +16,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
+import { AuthProvider } from "@/context/AuthContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -24,36 +25,18 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="product/[id]"
-        options={{ headerShown: false, animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="checkout"
-        options={{ headerShown: false, animation: "slide_from_bottom" }}
-      />
-      <Stack.Screen
-        name="order-success"
-        options={{ headerShown: false, animation: "fade" }}
-      />
-      <Stack.Screen
-        name="order/[id]"
-        options={{ headerShown: false, animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="admin/index"
-        options={{ headerShown: false, animation: "slide_from_bottom" }}
-      />
-      <Stack.Screen
-        name="admin/products"
-        options={{ headerShown: false, animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="admin/orders"
-        options={{ headerShown: false, animation: "slide_from_right" }}
-      />
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="auth/login" options={{ animation: "slide_from_bottom" }} />
+      <Stack.Screen name="auth/register" options={{ animation: "slide_from_bottom" }} />
+      <Stack.Screen name="product/[id]" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="checkout" options={{ animation: "slide_from_bottom" }} />
+      <Stack.Screen name="order-success" options={{ animation: "fade" }} />
+      <Stack.Screen name="order/[id]" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="admin/index" options={{ animation: "slide_from_bottom" }} />
+      <Stack.Screen name="admin/login" options={{ animation: "slide_from_bottom" }} />
+      <Stack.Screen name="admin/products" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="admin/orders" options={{ animation: "slide_from_right" }} />
     </Stack>
   );
 }
@@ -78,14 +61,16 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <AppProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <StatusBar style="auto" />
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </AppProvider>
+          <AuthProvider>
+            <AppProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <StatusBar style="auto" />
+                  <RootLayoutNav />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </AppProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

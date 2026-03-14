@@ -1,19 +1,17 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Dimensions,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useColorScheme,
+  ActivityIndicator, Dimensions, Platform, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
+import { api } from "@/services/api";
+import { BarChart } from "@/components/charts/BarChart";
+import { LineChart } from "@/components/charts/LineChart";
 
 const { width } = Dimensions.get("window");
 
@@ -24,179 +22,181 @@ const THEMES = [
   { id: "independence", label: "Independence Day", color: "#27AE60", icon: "flag" },
 ];
 
+type Analytics = {
+  totalRevenue: number; totalProfit: number; totalOrders: number; totalProducts: number;
+  totalUsers: number; avgOrderValue: number; last7Days: any[]; statusBreakdown: any;
+  topProducts: any[]; lowStockCount: number; pendingActions: number;
+};
+
 export default function AdminDashboard() {
-  const { orders, products, isDarkMode } = useApp();
+  const { orders: localOrders, products, isDarkMode } = useApp();
+  const { user } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = isDarkMode || colorScheme === "dark";
   const theme = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
-  const topInset = insets.top + (Platform.OS === "web" ? 67 : 0);
+  const topPad = insets.top + 8;
   const [activeTheme, setActiveTheme] = useState("default");
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [useApi, setUseApi] = useState(false);
 
-  const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
-  const totalProfit = orders.reduce(
-    (s, o) =>
-      s +
-      o.items.reduce(
-        (ps, item) => ps + (item.product.discountedPrice - item.product.costPrice) * item.quantity,
-        0
-      ),
-    0
-  );
-  const aov = orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0;
-
-  const pendingOrders = orders.filter(
-    (o) => o.status === "pending" || o.status === "awaiting_verification"
-  ).length;
-  const lowStockProducts = products.filter((p) =>
-    p.variants.some((v) => v.stock <= 5)
-  ).length;
-
-  const statusCounts = {
-    pending: orders.filter((o) => o.status === "pending").length,
-    awaiting_verification: orders.filter((o) => o.status === "awaiting_verification").length,
-    verified: orders.filter((o) => o.status === "verified").length,
-    dispatched: orders.filter((o) => o.status === "dispatched").length,
-    delivered: orders.filter((o) => o.status === "delivered").length,
+  const fetchAnalytics = async () => {
+    try {
+      const data = await api.analytics.summary();
+      setAnalytics(data);
+      setUseApi(true);
+    } catch {
+      setUseApi(false);
+    }
   };
 
-  const metrics = [
-    { label: "Gross Revenue", value: `Rs. ${totalRevenue.toLocaleString()}`, icon: "trending-up", color: Colors.successGreen },
-    { label: "Total Profit", value: `Rs. ${totalProfit.toLocaleString()}`, icon: "dollar-sign", color: Colors.gold },
-    { label: "Avg Order Value", value: `Rs. ${aov.toLocaleString()}`, icon: "bar-chart-2", color: "#3498DB" },
-    { label: "Total Orders", value: orders.length.toString(), icon: "package", color: "#9B59B6" },
-  ];
+  useEffect(() => { fetchAnalytics(); }, []);
 
-  const alerts = [
-    ...(pendingOrders > 0
-      ? [{ type: "warning", text: `${pendingOrders} orders need attention`, icon: "alert-circle" }]
-      : []),
-    ...(lowStockProducts > 0
-      ? [{ type: "error", text: `${lowStockProducts} products low in stock`, icon: "alert-triangle" }]
-      : []),
-    ...(pendingOrders === 0 && lowStockProducts === 0
-      ? [{ type: "success", text: "All systems normal. Store is running smoothly.", icon: "check-circle" }]
-      : []),
-  ];
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchAnalytics();
+    setRefreshing(false);
+  };
+
+  const orders = localOrders;
+  const totalRevenue = useApi && analytics ? analytics.totalRevenue : orders.reduce((s, o) => s + o.total, 0);
+  const totalProfit = useApi && analytics ? analytics.totalProfit : orders.reduce((s, o) => s + o.items.reduce((ps, item) => ps + (item.product.discountedPrice - item.product.costPrice) * item.quantity, 0), 0);
+  const avgOrder = orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0;
+
+  const last7 = analytics?.last7Days || Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    return { label: d.toLocaleDateString("en", { weekday: "short" }), revenue: 0, orders: 0 };
+  });
+
+  const statusBreakdown = analytics?.statusBreakdown || {
+    pending: orders.filter(o => o.status === "pending").length,
+    awaiting_verification: orders.filter(o => o.status === "awaiting_verification").length,
+    verified: orders.filter(o => o.status === "verified").length,
+    dispatched: orders.filter(o => o.status === "dispatched").length,
+    delivered: orders.filter(o => o.status === "delivered").length,
+  };
+
+  const lowStockCount = products.filter(p => p.variants.some(v => v.stock <= 5)).length;
+  const pendingActions = (statusBreakdown.pending || 0) + (statusBreakdown.awaiting_verification || 0);
+  const totalUsers = analytics?.totalUsers || 1;
+
+  const revenueBarData = last7.map((d: any) => ({
+    label: d.label, value: d.revenue || 0, color: Colors.gold,
+  }));
+
+  const ordersLineData = last7.map((d: any) => ({
+    label: d.label, value: d.orders || 0,
+  }));
+
+  const maxRev = Math.max(...revenueBarData.map((d: any) => d.value));
+
+  const topProducts = analytics?.topProducts || [];
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: topInset + 12, backgroundColor: Colors.charcoal, borderBottomColor: "rgba(201,168,76,0.2)" }]}>
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: Colors.charcoal, borderBottomColor: "rgba(201,168,76,0.25)" }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="x" size={22} color={Colors.offWhite} />
+          <Feather name="x" size={20} color={Colors.offWhite} />
         </Pressable>
-        <View>
-          <Text style={styles.adminLabel}>ADMIN</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.adminBadge}>ADMIN</Text>
           <Text style={styles.headerTitle}>Command Center</Text>
         </View>
-        <View style={[styles.adminBadge, { backgroundColor: Colors.gold }]}>
-          <Text style={styles.adminBadgeText}>LIVE</Text>
+        <View style={[styles.liveDot, { backgroundColor: Colors.successGreen }]}>
+          <Text style={styles.liveDotText}>LIVE</Text>
         </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.gold} />}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       >
-        {alerts.map((alert, i) => (
-          <View
-            key={i}
-            style={[
-              styles.alertBanner,
-              {
-                backgroundColor:
-                  alert.type === "success"
-                    ? Colors.successGreen + "15"
-                    : alert.type === "warning"
-                    ? "#F39C12" + "15"
-                    : Colors.errorRed + "15",
-                borderColor:
-                  alert.type === "success"
-                    ? Colors.successGreen + "40"
-                    : alert.type === "warning"
-                    ? "#F39C12" + "40"
-                    : Colors.errorRed + "40",
-              },
-            ]}
+        {pendingActions > 0 && (
+          <Pressable
+            style={[styles.alertBanner, { backgroundColor: "#F39C12" + "15", borderColor: "#F39C12" + "40" }]}
+            onPress={() => router.push("/admin/orders" as any)}
           >
-            <Feather
-              name={alert.icon as any}
-              size={14}
-              color={
-                alert.type === "success"
-                  ? Colors.successGreen
-                  : alert.type === "warning"
-                  ? "#F39C12"
-                  : Colors.errorRed
-              }
-            />
-            <Text
-              style={[
-                styles.alertText,
-                {
-                  color:
-                    alert.type === "success"
-                      ? Colors.successGreen
-                      : alert.type === "warning"
-                      ? "#F39C12"
-                      : Colors.errorRed,
-                },
-              ]}
-            >
-              {alert.text}
+            <Feather name="alert-circle" size={14} color="#F39C12" />
+            <Text style={[styles.alertText, { color: "#F39C12" }]}>
+              {pendingActions} orders need your attention
+            </Text>
+            <Feather name="chevron-right" size={14} color="#F39C12" />
+          </Pressable>
+        )}
+
+        {!useApi && (
+          <View style={[styles.apiBanner, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Feather name="wifi-off" size={12} color={theme.textSecondary} />
+            <Text style={[styles.apiText, { color: theme.textSecondary }]}>
+              Showing local data. Connect to API for live sync.
             </Text>
           </View>
-        ))}
+        )}
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Financial Overview</Text>
-          <View style={styles.metricsGrid}>
-            {metrics.map((m) => (
-              <View
-                key={m.label}
-                style={[styles.metricCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-              >
-                <View style={[styles.metricIcon, { backgroundColor: m.color + "20" }]}>
-                  <Feather name={m.icon as any} size={18} color={m.color} />
-                </View>
-                <Text style={[styles.metricValue, { color: theme.text }]}>{m.value}</Text>
-                <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{m.label}</Text>
+        <View style={styles.metricsGrid}>
+          {[
+            { label: "Revenue", value: `Rs. ${(totalRevenue / 1000).toFixed(1)}k`, icon: "trending-up", color: Colors.successGreen },
+            { label: "Profit", value: `Rs. ${(totalProfit / 1000).toFixed(1)}k`, icon: "dollar-sign", color: Colors.gold },
+            { label: "Orders", value: orders.length.toString(), icon: "package", color: "#3498DB" },
+            { label: "Avg. Order", value: `Rs. ${(avgOrder / 1000).toFixed(1)}k`, icon: "bar-chart", color: "#9B59B6" },
+            { label: "Products", value: products.length.toString(), icon: "tag", color: Colors.gold },
+            { label: "Users", value: totalUsers.toString(), icon: "users", color: Colors.successGreen },
+            { label: "Low Stock", value: lowStockCount.toString(), icon: "alert-triangle", color: lowStockCount > 0 ? Colors.errorRed : Colors.successGreen },
+            { label: "Pending", value: pendingActions.toString(), icon: "clock", color: pendingActions > 0 ? "#F39C12" : Colors.successGreen },
+          ].map((m) => (
+            <View key={m.label} style={[styles.metricCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={[styles.metricIcon, { backgroundColor: m.color + "18" }]}>
+                <Feather name={m.icon as any} size={16} color={m.color} />
               </View>
-            ))}
-          </View>
+              <Text style={[styles.metricValue, { color: theme.text }]}>{m.value}</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{m.label}</Text>
+            </View>
+          ))}
         </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Order Pipeline</Text>
-          <View style={[styles.pipelineCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            {Object.entries(statusCounts).map(([status, count], idx) => {
+        <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.chartTitle, { color: theme.text }]}>Revenue — Last 7 Days</Text>
+          {maxRev > 0 ? (
+            <BarChart data={revenueBarData} height={140} isDark={isDark} valuePrefix="Rs." />
+          ) : (
+            <View style={styles.noDataBox}>
+              <Feather name="bar-chart-2" size={24} color={theme.textSecondary} />
+              <Text style={[styles.noDataText, { color: theme.textSecondary }]}>No revenue data yet</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.chartTitle, { color: theme.text }]}>Orders — Last 7 Days</Text>
+          <LineChart data={ordersLineData} height={110} color={Colors.successGreen} isDark={isDark} />
+        </View>
+
+        <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.chartTitle, { color: theme.text }]}>Order Status Breakdown</Text>
+          <View style={styles.statusGrid}>
+            {Object.entries(statusBreakdown).map(([status, count]) => {
+              const colorsMap: Record<string, string> = {
+                pending: "#F39C12", awaiting_verification: "#3498DB", verified: Colors.successGreen,
+                dispatched: "#9B59B6", delivered: Colors.gold, cancelled: Colors.errorRed,
+              };
               const labels: Record<string, string> = {
-                pending: "Pending",
-                awaiting_verification: "Awaiting Verification",
-                verified: "Verified",
-                dispatched: "Dispatched",
-                delivered: "Delivered",
+                pending: "Pending", awaiting_verification: "Awaiting", verified: "Verified",
+                dispatched: "Dispatched", delivered: "Delivered", cancelled: "Cancelled",
               };
-              const colors = {
-                pending: "#F39C12",
-                awaiting_verification: "#3498DB",
-                verified: Colors.successGreen,
-                dispatched: "#9B59B6",
-                delivered: Colors.gold,
-              };
+              const c = colorsMap[status] || Colors.mutedGray;
+              const total = Object.values(statusBreakdown).reduce((a: number, b) => a + (b as number), 0) || 1;
+              const pct = Math.round(((count as number) / total) * 100);
               return (
-                <View
-                  key={status}
-                  style={[
-                    styles.pipelineRow,
-                    idx < Object.keys(statusCounts).length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border },
-                  ]}
-                >
-                  <View style={[styles.pipelineDot, { backgroundColor: colors[status as keyof typeof colors] }]} />
-                  <Text style={[styles.pipelineLabel, { color: theme.text }]}>{labels[status]}</Text>
-                  <View style={[styles.pipelineCount, { backgroundColor: (colors[status as keyof typeof colors]) + "20" }]}>
-                    <Text style={[styles.pipelineCountText, { color: colors[status as keyof typeof colors] }]}>{count}</Text>
+                <View key={status} style={styles.statusItem}>
+                  <View style={styles.statusHeader}>
+                    <View style={[styles.statusDot, { backgroundColor: c }]} />
+                    <Text style={[styles.statusLabel, { color: theme.textSecondary }]}>{labels[status]}</Text>
+                    <Text style={[styles.statusCount, { color: theme.text }]}>{count as number}</Text>
+                  </View>
+                  <View style={[styles.statusBar, { backgroundColor: theme.backgroundSecondary }]}>
+                    <View style={[styles.statusBarFill, { width: `${pct}%`, backgroundColor: c }]} />
                   </View>
                 </View>
               );
@@ -204,85 +204,61 @@ export default function AdminDashboard() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Quick Actions</Text>
-          <View style={styles.actionsGrid}>
-            {[
-              { icon: "package", label: "Manage Orders", route: "/admin/orders", color: "#3498DB" },
-              { icon: "tag", label: "Products", route: "/admin/products", color: Colors.gold },
-              { icon: "users", label: "Customers", route: null, color: "#9B59B6" },
-              { icon: "bar-chart-2", label: "Analytics", route: null, color: Colors.successGreen },
-            ].map((action) => (
-              <Pressable
-                key={action.label}
-                style={[styles.actionCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-                onPress={() => action.route && router.push(action.route as any)}
-              >
-                <View style={[styles.actionIcon, { backgroundColor: action.color + "20" }]}>
-                  <Feather name={action.icon as any} size={22} color={action.color} />
+        {topProducts.length > 0 && (
+          <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.chartTitle, { color: theme.text }]}>Top Products</Text>
+            {topProducts.map((p: any, i: number) => (
+              <View key={p.id} style={[styles.topProductRow, i < topProducts.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
+                <View style={[styles.rankBadge, { backgroundColor: i === 0 ? Colors.gold : theme.backgroundSecondary }]}>
+                  <Text style={[styles.rankText, { color: i === 0 ? Colors.charcoal : theme.textSecondary }]}>#{i + 1}</Text>
                 </View>
-                <Text style={[styles.actionLabel, { color: theme.text }]}>{action.label}</Text>
-              </Pressable>
+                <Text style={[styles.topProductName, { color: theme.text }]} numberOfLines={1}>{p.name}</Text>
+                <View style={styles.topProductStats}>
+                  <Text style={[styles.topProductRevenue, { color: Colors.gold }]}>Rs. {p.revenue.toLocaleString()}</Text>
+                  <Text style={[styles.topProductUnits, { color: theme.textSecondary }]}>{p.unitsSold} sold</Text>
+                </View>
+              </View>
             ))}
           </View>
+        )}
+
+        <View style={styles.actionsRow}>
+          {[
+            { icon: "package", label: "Orders", route: "/admin/orders", color: "#3498DB" },
+            { icon: "tag", label: "Products", route: "/admin/products", color: Colors.gold },
+          ].map((a) => (
+            <Pressable
+              key={a.label}
+              style={[styles.actionCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+              onPress={() => router.push(a.route as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: a.color + "18" }]}>
+                <Feather name={a.icon as any} size={22} color={a.color} />
+              </View>
+              <Text style={[styles.actionLabel, { color: theme.text }]}>{a.label}</Text>
+              <Feather name="chevron-right" size={14} color={theme.textSecondary} />
+            </Pressable>
+          ))}
         </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Theme Engine</Text>
-          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-            Activate seasonal themes for your store
-          </Text>
-          <View style={[styles.themesCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            {THEMES.map((t, idx) => (
+        <View style={[styles.themesCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.chartTitle, { color: theme.text }]}>Seasonal Theme</Text>
+          <View style={styles.themesGrid}>
+            {THEMES.map((t) => (
               <Pressable
                 key={t.id}
-                style={[
-                  styles.themeRow,
-                  idx < THEMES.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border },
-                  activeTheme === t.id && { backgroundColor: t.color + "10" },
-                ]}
+                style={[styles.themeBtn, {
+                  backgroundColor: activeTheme === t.id ? t.color + "15" : theme.backgroundSecondary,
+                  borderColor: activeTheme === t.id ? t.color : theme.border,
+                  borderWidth: activeTheme === t.id ? 1.5 : 1,
+                }]}
                 onPress={() => setActiveTheme(t.id)}
               >
-                <View style={[styles.themeIconBg, { backgroundColor: t.color + "20" }]}>
-                  <Feather name={t.icon as any} size={16} color={t.color} />
-                </View>
-                <Text style={[styles.themeLabel, { color: activeTheme === t.id ? t.color : theme.text, fontFamily: activeTheme === t.id ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
+                <Feather name={t.icon as any} size={16} color={activeTheme === t.id ? t.color : theme.textSecondary} />
+                <Text style={[styles.themeBtnText, { color: activeTheme === t.id ? t.color : theme.text, fontFamily: activeTheme === t.id ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
                   {t.label}
                 </Text>
-                {activeTheme === t.id && (
-                  <View style={[styles.activeThemeBadge, { backgroundColor: t.color }]}>
-                    <Text style={styles.activeThemeText}>Active</Text>
-                  </View>
-                )}
               </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Store Stats</Text>
-          <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            {[
-              { label: "Total Products", value: products.length },
-              { label: "Low Stock Items", value: lowStockProducts, warn: lowStockProducts > 0 },
-              {
-                label: "Total Revenue",
-                value: `Rs. ${totalRevenue.toLocaleString()}`,
-              },
-              { label: "Active Customers", value: "—" },
-            ].map((stat, idx) => (
-              <View
-                key={stat.label}
-                style={[
-                  styles.statRow,
-                  idx < 3 && { borderBottomWidth: 1, borderBottomColor: theme.border },
-                ]}
-              >
-                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{stat.label}</Text>
-                <Text style={[styles.statValue, { color: stat.warn ? Colors.errorRed : theme.text }]}>
-                  {stat.value}
-                </Text>
-              </View>
             ))}
           </View>
         </View>
@@ -294,204 +270,69 @@ export default function AdminDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1,
   },
-  backBtn: { padding: 4 },
-  adminLabel: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 10,
-    color: Colors.gold,
-    letterSpacing: 2,
-  },
-  headerTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 18,
-    color: Colors.offWhite,
-  },
-  adminBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  backBtn: { padding: 4, width: 32 },
+  headerCenter: { alignItems: "center" },
+  adminBadge: { fontFamily: "Inter_500Medium", fontSize: 9, color: Colors.gold, letterSpacing: 2 },
+  headerTitle: { fontFamily: "Inter_700Bold", fontSize: 17, color: Colors.offWhite },
+  liveDot: {
+    flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4,
     borderRadius: 8,
   },
-  adminBadgeText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 10,
-    color: Colors.charcoal,
-    letterSpacing: 1,
-  },
+  liveDotText: { fontFamily: "Inter_700Bold", fontSize: 9, color: Colors.charcoal, letterSpacing: 1 },
   alertBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginHorizontal: 16,
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
+    flexDirection: "row", alignItems: "center", gap: 8, margin: 12,
+    padding: 12, borderRadius: 10, borderWidth: 1,
   },
-  alertText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    flex: 1,
+  alertText: { fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 },
+  apiBanner: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginHorizontal: 12, marginBottom: 4, padding: 10,
+    borderRadius: 8, borderWidth: 1,
   },
-  section: {
-    paddingHorizontal: 16,
-    marginTop: 20,
-  },
-  sectionTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 17,
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    marginBottom: 12,
-  },
+  apiText: { fontFamily: "Inter_400Regular", fontSize: 11, flex: 1 },
   metricsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 12,
+    flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 8,
   },
   metricCard: {
-    width: (width - 42) / 2,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
-    gap: 8,
+    width: (width - 24 - 24) / 4,
+    borderRadius: 12, borderWidth: 1, padding: 10, alignItems: "center", gap: 6,
   },
-  metricIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+  metricIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  metricValue: { fontFamily: "Inter_700Bold", fontSize: 13, textAlign: "center" },
+  metricLabel: { fontFamily: "Inter_400Regular", fontSize: 9, textAlign: "center" },
+  chartCard: {
+    marginHorizontal: 12, marginBottom: 10, borderRadius: 16, borderWidth: 1, padding: 16,
   },
-  metricValue: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-  },
-  metricLabel: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-  },
-  pipelineCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
-    marginTop: 12,
-  },
-  pipelineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  pipelineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  pipelineLabel: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    flex: 1,
-  },
-  pipelineCount: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  pipelineCountText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 13,
-  },
-  actionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 12,
-  },
+  chartTitle: { fontFamily: "Inter_600SemiBold", fontSize: 14, marginBottom: 14 },
+  noDataBox: { alignItems: "center", paddingVertical: 24, gap: 8 },
+  noDataText: { fontFamily: "Inter_400Regular", fontSize: 13 },
+  statusGrid: { gap: 10 },
+  statusItem: { gap: 5 },
+  statusHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusLabel: { fontFamily: "Inter_400Regular", fontSize: 12, flex: 1 },
+  statusCount: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  statusBar: { height: 4, borderRadius: 2, overflow: "hidden" },
+  statusBarFill: { height: "100%", borderRadius: 2 },
+  topProductRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10 },
+  rankBadge: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  rankText: { fontFamily: "Inter_700Bold", fontSize: 10 },
+  topProductName: { fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 },
+  topProductStats: { alignItems: "flex-end" },
+  topProductRevenue: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
+  topProductUnits: { fontFamily: "Inter_400Regular", fontSize: 10 },
+  actionsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 12, marginBottom: 10 },
   actionCard: {
-    width: (width - 42) / 2,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 20,
-    alignItems: "center",
-    gap: 10,
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, borderWidth: 1, padding: 16,
   },
-  actionIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionLabel: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    textAlign: "center",
-  },
-  themesCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
-    marginTop: 12,
-  },
-  themeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  themeIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  themeLabel: {
-    flex: 1,
-    fontSize: 14,
-  },
-  activeThemeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  activeThemeText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 11,
-    color: Colors.charcoal,
-  },
-  statsCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
-    marginTop: 12,
-  },
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  statLabel: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-  },
-  statValue: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
+  actionIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  actionLabel: { fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 },
+  themesCard: { marginHorizontal: 12, marginBottom: 10, borderRadius: 16, borderWidth: 1, padding: 16 },
+  themesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  themeBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  themeBtnText: { fontSize: 12 },
 });

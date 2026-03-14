@@ -1,0 +1,82 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const getDomain = () => {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!domain) return "localhost:8080";
+  return domain;
+};
+
+export const getApiBase = () => `https://${getDomain()}/api-server/api`;
+
+async function getToken(): Promise<string | null> {
+  return AsyncStorage.getItem("auth_token");
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  requiresAuth = false
+): Promise<T> {
+  const base = getApiBase();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (requiresAuth) {
+    const token = await getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${base}${path}`, { ...options, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+export const api = {
+  auth: {
+    login: (email: string, password: string) =>
+      request<{ user: any; token: string }>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
+    register: (name: string, email: string, password: string, phone?: string) =>
+      request<{ user: any; token: string }>("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ name, email, password, phone }),
+      }),
+    me: () => request<{ user: any }>("/auth/me", {}, true),
+    logout: () => request<{ success: boolean }>("/auth/logout", { method: "POST" }, true),
+  },
+
+  products: {
+    list: (params?: { category?: string }) => {
+      const qs = params?.category ? `?category=${params.category}` : "";
+      return request<{ products: any[]; total: number }>(`/products${qs}`);
+    },
+    get: (id: string) => request<{ product: any }>(`/products/${id}`),
+    create: (data: any) => request<{ product: any }>("/products", { method: "POST", body: JSON.stringify(data) }, true),
+    update: (id: string, data: any) => request<{ product: any }>(`/products/${id}`, { method: "PUT", body: JSON.stringify(data) }, true),
+    delete: (id: string) => request<{ success: boolean }>(`/products/${id}`, { method: "DELETE" }, true),
+  },
+
+  orders: {
+    list: (params?: { status?: string }) => {
+      const qs = params?.status ? `?status=${params.status}` : "";
+      return request<{ orders: any[]; total: number }>(`/orders${qs}`, {}, true);
+    },
+    get: (id: string) => request<{ order: any }>(`/orders/${id}`, {}, true),
+    create: (data: any) => request<{ order: any }>("/orders", { method: "POST", body: JSON.stringify(data) }, true),
+    updateStatus: (id: string, status: string, extra?: { courierTrackingId?: string; courierName?: string; notes?: string }) =>
+      request<{ order: any }>(`/orders/${id}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ status, ...extra }),
+      }, true),
+  },
+
+  analytics: {
+    summary: () => request<any>("/analytics", {}, true),
+    users: () => request<{ users: any[]; total: number }>("/analytics/users", {}, true),
+  },
+};
