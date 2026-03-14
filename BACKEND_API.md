@@ -73,7 +73,7 @@ All errors return JSON in the format:
 
 ---
 
-## Endpoints
+## Endpoin[ts
 
 ### Health
 
