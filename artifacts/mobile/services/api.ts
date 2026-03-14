@@ -61,8 +61,13 @@ export const api = {
   },
 
   products: {
-    list: (params?: { category?: string }) => {
-      const qs = params?.category ? `?category=${params.category}` : "";
+    list: (params?: { category?: string; search?: string; featured?: boolean; active?: boolean }) => {
+      const q = new URLSearchParams();
+      if (params?.category) q.set("category", params.category);
+      if (params?.search) q.set("search", params.search);
+      if (params?.featured !== undefined) q.set("featured", String(params.featured));
+      if (params?.active !== undefined) q.set("active", String(params.active));
+      const qs = q.toString() ? `?${q.toString()}` : "";
       return request<{ products: any[]; total: number }>(`/products${qs}`);
     },
     get: (id: string) => request<{ product: any }>(`/products/${id}`),

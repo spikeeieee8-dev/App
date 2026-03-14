@@ -1,102 +1,168 @@
 import { Router } from "express";
-import { store } from "../lib/store.js";
-import { requireAuth } from "../middlewares/auth.js";
+import bcrypt from "bcrypt";
+import { eq } from "drizzle-orm";
+import { db, schema } from "../lib/db.js";
+import { signToken } from "../lib/jwt.js";
+import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
+const SALT_ROUNDS = 12;
 
-router.post("/register", (req, res) => {
-  const { name, email, password, phone } = req.body;
-  if (!name || !email || !password) {
-    res.status(400).json({ error: "Name, email and password are required" });
-    return;
+function safeUser(u: typeof schema.users.$inferSelect) {
+  const { passwordHash: _, ...safe } = u;
+  return safe;
+}
+
+router.post("/register", async (req, res) => {
+  try {
+    const { name, email, password, phone } = req.body;
+    if (!name || !email || !password) {
+      res.status(400).json({ error: "Name, email and password are required" });
+      return;
+    }
+    if (password.length < 6) {
+      res.status(400).json({ error: "Password must be at least 6 characters" });
+      return;
+    }
+    const existing = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, email.toLowerCase()))
+      .limit(1);
+    if (existing.length > 0) {
+      res.status(409).json({ error: "Email already registered" });
+      return;
+    }
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const [user] = await db
+      .insert(schema.users)
+      .values({
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        passwordHash,
+        phone: phone?.trim() || null,
+        role: "user",
+      })
+      .returning();
+    const token = signToken({ userId: user.id, role: user.role, email: user.email });
+    res.status(201).json({ user: safeUser(user), token });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: "Registration failed" });
   }
-  if (store.users.findByEmail(email)) {
-    res.status(409).json({ error: "Email already registered" });
-    return;
-  }
-  if (password.length < 6) {
-    res.status(400).json({ error: "Password must be at least 6 characters" });
-    return;
-  }
-  const user = store.users.create({
-    name, email, phone,
-    passwordHash: store.hashPassword(password),
-    role: "user",
-  });
-  const session = store.sessions.create(user.id);
-  const { passwordHash: _, ...safeUser } = user;
-  res.json({ user: safeUser, token: session.token });
 });
 
-router.post("/login", (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    res.status(400).json({ error: "Email and password are required" });
-    return;
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      res.status(400).json({ error: "Email and password are required" });
+      return;
+    }
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, email.toLowerCase()))
+      .limit(1);
+    if (!user) {
+      res.status(401).json({ error: "Invalid email or password" });
+      return;
+    }
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Invalid email or password" });
+      return;
+    }
+    const token = signToken({ userId: user.id, role: user.role, email: user.email });
+    res.json({ user: safeUser(user), token });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Login failed" });
   }
-  const user = store.users.findByEmail(email);
-  if (!user || user.passwordHash !== store.hashPassword(password)) {
-    res.status(401).json({ error: "Invalid email or password" });
-    return;
-  }
-  const session = store.sessions.create(user.id);
-  const { passwordHash: _, ...safeUser } = user;
-  res.json({ user: safeUser, token: session.token });
 });
 
-router.get("/me", requireAuth, (req, res) => {
-  const user = (req as any).user;
-  const { passwordHash: _, ...safeUser } = user;
-  res.json({ user: safeUser });
+router.get("/me", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.jwtPayload!;
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json({ user: safeUser(user) });
+  } catch (err) {
+    console.error("Me error:", err);
+    res.status(500).json({ error: "Failed to fetch profile" });
+  }
 });
 
-router.patch("/profile", requireAuth, (req, res) => {
-  const user = (req as any).user;
-  const { name, phone } = req.body;
-  if (!name || name.trim().length < 2) {
-    res.status(400).json({ error: "Name must be at least 2 characters" });
-    return;
+router.patch("/profile", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.jwtPayload!;
+    const { name, phone } = req.body;
+    if (!name || name.trim().length < 2) {
+      res.status(400).json({ error: "Name must be at least 2 characters" });
+      return;
+    }
+    const [updated] = await db
+      .update(schema.users)
+      .set({ name: name.trim(), phone: phone?.trim() || null })
+      .where(eq(schema.users.id, userId))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json({ user: safeUser(updated) });
+  } catch (err) {
+    console.error("Profile update error:", err);
+    res.status(500).json({ error: "Failed to update profile" });
   }
-  const updated = store.users.update(user.id, {
-    name: name.trim(),
-    phone: phone?.trim() || undefined,
-  });
-  if (!updated) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  const { passwordHash: _, ...safeUser } = updated;
-  res.json({ user: safeUser });
 });
 
-router.patch("/password", requireAuth, (req, res) => {
-  const user = (req as any).user;
-  const { currentPassword, newPassword } = req.body;
-  if (!currentPassword || !newPassword) {
-    res.status(400).json({ error: "Current and new password are required" });
-    return;
+router.patch("/password", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.jwtPayload!;
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: "Current and new password are required" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: "New password must be at least 6 characters" });
+      return;
+    }
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await db
+      .update(schema.users)
+      .set({ passwordHash })
+      .where(eq(schema.users.id, userId));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Password change error:", err);
+    res.status(500).json({ error: "Failed to change password" });
   }
-  if (user.passwordHash !== store.hashPassword(currentPassword)) {
-    res.status(401).json({ error: "Current password is incorrect" });
-    return;
-  }
-  if (newPassword.length < 6) {
-    res.status(400).json({ error: "New password must be at least 6 characters" });
-    return;
-  }
-  const updated = store.users.update(user.id, {
-    passwordHash: store.hashPassword(newPassword),
-  });
-  if (!updated) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  res.json({ success: true });
 });
 
-router.post("/logout", requireAuth, (req, res) => {
-  const token = req.headers.authorization?.replace("Bearer ", "");
-  if (token) store.sessions.delete(token);
+router.post("/logout", requireAuth, (_req, res) => {
   res.json({ success: true });
 });
 

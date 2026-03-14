@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef } from "react";
+import { scheduleOrderConfirmationNotification } from "@/services/notifications";
 import {
   Animated,
   Platform,
@@ -39,7 +40,10 @@ export default function OrderSuccessScreen() {
       Animated.timing(checkAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
       Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
     ]).start();
-  }, []);
+    if (orderId) {
+      scheduleOrderConfirmationNotification(orderId);
+    }
+  }, [orderId]);
 
   return (
     <View

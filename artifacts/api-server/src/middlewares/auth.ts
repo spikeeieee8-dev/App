@@ -1,30 +1,35 @@
 import { Request, Response, NextFunction } from "express";
-import { store } from "../lib/store.js";
+import { verifyToken } from "../lib/jwt.js";
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export interface AuthRequest extends Request {
+  jwtPayload?: { userId: string; role: string; email: string };
+}
+
+export function requireAuth(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
   const token = req.headers.authorization?.replace("Bearer ", "");
   if (!token) {
     res.status(401).json({ error: "Authentication required" });
     return;
   }
-  const session = store.sessions.find(token);
-  if (!session || new Date(session.expiresAt) < new Date()) {
+  try {
+    req.jwtPayload = verifyToken(token);
+    next();
+  } catch {
     res.status(401).json({ error: "Invalid or expired token" });
-    return;
   }
-  const user = store.users.findById(session.userId);
-  if (!user) {
-    res.status(401).json({ error: "User not found" });
-    return;
-  }
-  (req as any).user = user;
-  next();
 }
 
-export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+export function requireAdmin(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
   requireAuth(req, res, () => {
-    const user = (req as any).user;
-    if (user?.role !== "admin") {
+    if (req.jwtPayload?.role !== "admin") {
       res.status(403).json({ error: "Admin access required" });
       return;
     }

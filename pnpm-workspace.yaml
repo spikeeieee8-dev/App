@@ -62,7 +62,9 @@ autoInstallPeers: false
 
 onlyBuiltDependencies:
   - '@swc/core'
+  - bcrypt
   - esbuild
+  - msgpackr-extract
   - msw
   - unrs-resolver
 

@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { api } from "@/services/api";
 
 export type ProductVariant = {
   size: string;
@@ -67,6 +68,7 @@ type AppContextType = {
   wishlist: string[];
   orders: Order[];
   products: Product[];
+  productsLoading: boolean;
   isDarkMode: boolean;
   hasSeenWelcome: boolean;
   addToCart: (product: Product, size: string, color: string, qty?: number) => void;
@@ -75,6 +77,7 @@ type AppContextType = {
   clearCart: () => void;
   toggleWishlist: (productId: string) => void;
   placeOrder: (order: Omit<Order, "id" | "createdAt" | "updatedAt">) => Promise<Order>;
+  refreshOrders: () => Promise<void>;
   setDarkMode: (v: boolean) => void;
   setHasSeenWelcome: (v: boolean) => void;
   cartCount: number;
@@ -268,23 +271,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [products] = useState<Product[]>(SAMPLE_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [isDarkMode, setIsDarkModeState] = useState(false);
   const [hasSeenWelcome, setHasSeenWelcomeState] = useState(false);
+  const fetchedRef = useRef(false);
+
+  function apiOrderToLocal(apiOrder: any): Order {
+    const items: CartItem[] = (apiOrder.items ?? []).map((item: any) => ({
+      product: {
+        id: item.productId ?? "",
+        name: item.productName ?? "Unknown",
+        description: "",
+        category: "men" as const,
+        subcategory: "",
+        originalPrice: item.price ?? 0,
+        discountedPrice: item.price ?? 0,
+        costPrice: 0,
+        images: [],
+        variants: [],
+        tags: [],
+      },
+      size: item.size ?? "",
+      color: item.color ?? "",
+      quantity: item.quantity ?? 1,
+    }));
+    return {
+      id: apiOrder.id,
+      items,
+      subtotal: apiOrder.subtotal ?? 0,
+      shippingCost: apiOrder.shippingCost ?? 0,
+      total: apiOrder.total ?? 0,
+      status: apiOrder.status as OrderStatus,
+      paymentMethod: apiOrder.paymentMethod as Order["paymentMethod"],
+      paymentProofUri: apiOrder.paymentProofUri,
+      address: apiOrder.address ?? { name: "", phone: "", address: "", city: "", province: "" },
+      courierTrackingId: apiOrder.courierTrackingId,
+      courierName: apiOrder.courierName,
+      createdAt: apiOrder.createdAt ?? new Date().toISOString(),
+      updatedAt: apiOrder.updatedAt ?? new Date().toISOString(),
+    };
+  }
+
+  const refreshOrders = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem("auth_token");
+      if (!token) return;
+      const { orders: apiOrders } = await api.orders.list();
+      const localOrders = (apiOrders ?? []).map(apiOrderToLocal);
+      setOrders(localOrders);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [c, w, o, d, welcome] = await Promise.all([
+        const [c, w, d, welcome] = await Promise.all([
           AsyncStorage.getItem("cart"),
           AsyncStorage.getItem("wishlist"),
-          AsyncStorage.getItem("orders"),
           AsyncStorage.getItem("darkMode"),
           AsyncStorage.getItem("welcomeTs"),
         ]);
         if (c) setCart(JSON.parse(c));
         if (w) setWishlist(JSON.parse(w));
-        if (o) setOrders(JSON.parse(o));
         if (d) setIsDarkModeState(JSON.parse(d));
         if (welcome) {
           const ts = parseInt(welcome);
@@ -293,9 +342,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch {}
+
+      if (!fetchedRef.current) {
+        fetchedRef.current = true;
+        setProductsLoading(true);
+        try {
+          const { products: apiProducts } = await api.products.list();
+          if (apiProducts && apiProducts.length > 0) {
+            setProducts(apiProducts as Product[]);
+          }
+        } catch {
+        } finally {
+          setProductsLoading(false);
+        }
+        await refreshOrders();
+      }
     };
     load();
-  }, []);
+  }, [refreshOrders]);
 
   const saveCart = useCallback(async (c: CartItem[]) => {
     setCart(c);
@@ -381,7 +445,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         quantity: item.quantity,
       }));
 
-      const { api } = await import("@/services/api");
       const response = await api.orders.create({
         items: backendItems,
         subtotal: orderData.subtotal,
@@ -398,14 +461,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         createdAt: response.order.createdAt,
         updatedAt: response.order.updatedAt,
       };
-      setOrders((prev) => {
-        const updated = [order, ...prev];
-        AsyncStorage.setItem("orders", JSON.stringify(updated));
-        return updated;
-      });
+      setOrders((prev) => [order, ...prev]);
+      refreshOrders().catch(() => {});
       return order;
     },
-    []
+    [refreshOrders]
   );
 
   const setDarkMode = useCallback((v: boolean) => {
@@ -428,6 +488,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         wishlist,
         orders,
         products,
+        productsLoading,
         isDarkMode,
         hasSeenWelcome,
         addToCart,
@@ -436,6 +497,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         clearCart,
         toggleWishlist,
         placeOrder,
+        refreshOrders,
         setDarkMode,
         setHasSeenWelcome,
         cartCount,

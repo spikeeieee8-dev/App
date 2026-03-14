@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useState, useRef } from "react";
 import {
-  Platform, Pressable, ScrollView, StyleSheet, Text,
+  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text,
   TextInput, View, useColorScheme, Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,7 +21,7 @@ const SUBCATEGORIES: Record<string, string[]> = {
 const SORT_OPTIONS = ["Featured", "Price: Low to High", "Price: High to Low", "Newest"];
 
 export default function ShopScreen() {
-  const { products, isDarkMode } = useApp();
+  const { products, productsLoading, isDarkMode } = useApp();
   const colorScheme = useColorScheme();
   const isDark = isDarkMode || colorScheme === "dark";
   const theme = isDark ? Colors.dark : Colors.light;
@@ -134,9 +134,14 @@ export default function ShopScreen() {
         contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 100 }}
       >
         <Text style={[styles.resultCount, { color: theme.textSecondary }]}>
-          {filtered.length} products · {sortBy}
+          {productsLoading ? "Loading products…" : `${filtered.length} products · ${sortBy}`}
         </Text>
-        {filtered.length === 0 ? (
+        {productsLoading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Loading products…</Text>
+          </View>
+        ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="shopping-bag" size={48} color={theme.textSecondary} />
             <Text style={[styles.emptyTitle, { color: theme.text }]}>No products found</Text>

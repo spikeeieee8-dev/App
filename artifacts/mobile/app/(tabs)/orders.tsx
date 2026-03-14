@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback } from "react";
 import {
   Platform,
   Pressable,
@@ -27,7 +27,13 @@ const STATUS_CONFIG: Record<
 };
 
 export default function OrdersScreen() {
-  const { orders, isDarkMode } = useApp();
+  const { orders, isDarkMode, refreshOrders } = useApp();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshOrders();
+    }, [refreshOrders])
+  );
   const colorScheme = useColorScheme();
   const isDark = isDarkMode || colorScheme === "dark";
   const theme = isDark ? Colors.dark : Colors.light;

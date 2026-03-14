@@ -9,18 +9,35 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@workspace/db": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1008.0",
+    "@aws-sdk/lib-storage": "^3.1008.0",
     "@workspace/api-zod": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "bcrypt": "^6.0.0",
+    "bullmq": "^5.71.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2"
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.10.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.2",
+    "pg": "^8.20.0",
+    "prom-client": "^15.1.3"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
-    "@types/express": "^5.0.6",
-    "@types/cors": "^2.8.19",
+    "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.1.0",
+    "@types/node": "catalog:",
+    "@types/nodemailer": "^7.0.11",
+    "@types/pg": "^8.18.0",
     "esbuild": "^0.27.3",
     "tsx": "catalog:"
   }

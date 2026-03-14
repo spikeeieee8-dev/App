@@ -5,6 +5,8 @@ import productsRouter from "./products.js";
 import ordersRouter from "./orders.js";
 import analyticsRouter from "./analytics.js";
 import usersRouter from "./users.js";
+import uploadRouter from "./upload.js";
+import metricsRouter from "./metrics-route.js";
 
 const router: IRouter = Router();
 
@@ -14,5 +16,7 @@ router.use("/products", productsRouter);
 router.use("/orders", ordersRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/users", usersRouter);
+router.use("/upload", uploadRouter);
 
+export { metricsRouter };
 export default router;
