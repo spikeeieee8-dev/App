@@ -1,13 +1,32 @@
 import { Router } from "express";
-import { eq, and, ilike, or } from "drizzle-orm";
+import { eq, and, ilike, or, inArray } from "drizzle-orm";
 import { db, schema } from "../lib/db.js";
 import { requireAdmin } from "../middlewares/auth.js";
+import { cacheGet, cacheSet, cacheDel, cacheDelPattern } from "../lib/cache.js";
 
 const router = Router();
+
+const CACHE_TTL = 60;
+
+function productsCacheKey(query: Record<string, unknown>): string {
+  const parts = Object.entries(query)
+    .filter(([, v]) => v !== undefined && v !== "")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("&");
+  return parts ? `products:list:${parts}` : "products:list";
+}
 
 router.get("/", async (req, res) => {
   try {
     const { category, active, featured, search } = req.query;
+    const cacheKey = productsCacheKey({ category, active, featured, search });
+
+    const cached = await cacheGet<{ products: unknown[]; total: number }>(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
 
     const conditions = [];
     if (category) conditions.push(eq(schema.products.category, category as string));
@@ -35,11 +54,7 @@ router.get("/", async (req, res) => {
         ? await db
             .select()
             .from(schema.productVariants)
-            .where(
-              productIds.length === 1
-                ? eq(schema.productVariants.productId, productIds[0])
-                : undefined
-            )
+            .where(inArray(schema.productVariants.productId, productIds))
         : [];
 
     const variantsByProduct = variants.reduce<Record<string, typeof schema.productVariants.$inferSelect[]>>(
@@ -56,7 +71,10 @@ router.get("/", async (req, res) => {
       variants: variantsByProduct[p.id] ?? [],
     }));
 
-    res.json({ products, total: products.length });
+    const result = { products, total: products.length };
+    await cacheSet(cacheKey, result, CACHE_TTL);
+
+    res.json(result);
   } catch (err) {
     console.error("List products error:", err);
     res.status(500).json({ error: "Failed to fetch products" });
@@ -65,6 +83,13 @@ router.get("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
+    const cacheKey = `products:item:${req.params.id}`;
+    const cached = await cacheGet<{ product: unknown }>(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
+
     const [product] = await db
       .select()
       .from(schema.products)
@@ -78,7 +103,10 @@ router.get("/:id", async (req, res) => {
       .select()
       .from(schema.productVariants)
       .where(eq(schema.productVariants.productId, product.id));
-    res.json({ product: { ...product, variants } });
+
+    const result = { product: { ...product, variants } };
+    await cacheSet(cacheKey, result, CACHE_TTL);
+    res.json(result);
   } catch (err) {
     console.error("Get product error:", err);
     res.status(500).json({ error: "Failed to fetch product" });
@@ -132,6 +160,8 @@ router.post("/", requireAdmin, async (req, res) => {
         )
         .returning();
     }
+
+    await cacheDelPattern("products:list*");
 
     res.status(201).json({ product: { ...product, variants: savedVariants } });
   } catch (err) {
@@ -198,6 +228,9 @@ router.put("/:id", requireAdmin, async (req, res) => {
       .from(schema.productVariants)
       .where(eq(schema.productVariants.productId, product.id));
 
+    await cacheDelPattern("products:list*");
+    await cacheDel(`products:item:${product.id}`);
+
     res.json({ product: { ...product, variants: updatedVariants } });
   } catch (err) {
     console.error("Update product error:", err);
@@ -216,6 +249,8 @@ router.delete("/:id", requireAdmin, async (req, res) => {
       res.status(404).json({ error: "Product not found" });
       return;
     }
+    await cacheDelPattern("products:list*");
+    await cacheDel(`products:item:${req.params.id}`);
     res.json({ success: true });
   } catch (err) {
     console.error("Delete product error:", err);

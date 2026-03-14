@@ -100,4 +100,22 @@ export const api = {
         body: JSON.stringify({ role }),
       }, true),
   },
+
+  cart: {
+    reserve: (variantId: string, quantity: number) =>
+      request<{ variant: any }>("/cart/reserve", {
+        method: "POST",
+        body: JSON.stringify({ variantId, quantity }),
+      }, true),
+    release: (variantId: string, quantity: number) =>
+      request<{ variant: any }>("/cart/release", {
+        method: "DELETE",
+        body: JSON.stringify({ variantId, quantity }),
+      }, true),
+    releaseAll: (variantIds: string[]) =>
+      request<{ success: boolean }>("/cart/release-all", {
+        method: "DELETE",
+        body: JSON.stringify({ variantIds }),
+      }, true),
+  },
 };

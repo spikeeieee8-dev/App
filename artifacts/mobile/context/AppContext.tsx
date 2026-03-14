@@ -3,9 +3,11 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { api } from "@/services/api";
 
 export type ProductVariant = {
+  id?: string;
   size: string;
   color: string;
   stock: number;
+  reservedStock?: number;
 };
 
 export type Product = {
@@ -31,6 +33,7 @@ export type CartItem = {
   size: string;
   color: string;
   quantity: number;
+  variantId?: string;
 };
 
 export type OrderStatus =
@@ -85,6 +88,27 @@ type AppContextType = {
 };
 
 const AppContext = createContext<AppContextType | null>(null);
+
+async function isAuthenticated(): Promise<boolean> {
+  const token = await AsyncStorage.getItem("auth_token");
+  return !!token;
+}
+
+async function tryReserve(variantId: string | undefined, quantity: number) {
+  if (!variantId) return;
+  if (!(await isAuthenticated())) return;
+  try {
+    await api.cart.reserve(variantId, quantity);
+  } catch {}
+}
+
+async function tryRelease(variantId: string | undefined, quantity: number) {
+  if (!variantId) return;
+  if (!(await isAuthenticated())) return;
+  try {
+    await api.cart.release(variantId, quantity);
+  } catch {}
+}
 
 const SAMPLE_PRODUCTS: Product[] = [
   {
@@ -295,6 +319,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       size: item.size ?? "",
       color: item.color ?? "",
       quantity: item.quantity ?? 1,
+      variantId: item.variantId ?? undefined,
     }));
     return {
       id: apiOrder.id,
@@ -361,13 +386,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     load();
   }, [refreshOrders]);
 
-  const saveCart = useCallback(async (c: CartItem[]) => {
-    setCart(c);
-    await AsyncStorage.setItem("cart", JSON.stringify(c));
-  }, []);
-
   const addToCart = useCallback(
     (product: Product, size: string, color: string, qty = 1) => {
+      const matchedVariant = product.variants.find(
+        (v) => v.size === size && v.color === color
+      );
+      const variantId = matchedVariant?.id;
+
       setCart((prev) => {
         const existing = prev.find(
           (i) => i.product.id === product.id && i.size === size && i.color === color
@@ -380,7 +405,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               : i
           );
         } else {
-          updated = [...prev, { product, size, color, quantity: qty }];
+          updated = [...prev, { product, size, color, quantity: qty, variantId }];
+        }
+        AsyncStorage.setItem("cart", JSON.stringify(updated));
+        return updated;
+      });
+
+      tryReserve(variantId, qty);
+    },
+    []
+  );
+
+  const removeFromCart = useCallback((productId: string, size: string, color: string) => {
+    setCart((prev) => {
+      const item = prev.find(
+        (i) => i.product.id === productId && i.size === size && i.color === color
+      );
+      const updated = prev.filter(
+        (i) => !(i.product.id === productId && i.size === size && i.color === color)
+      );
+      AsyncStorage.setItem("cart", JSON.stringify(updated));
+      if (item) tryRelease(item.variantId, item.quantity);
+      return updated;
+    });
+  }, []);
+
+  const updateCartQty = useCallback(
+    (productId: string, size: string, color: string, qty: number) => {
+      setCart((prev) => {
+        const existing = prev.find(
+          (i) => i.product.id === productId && i.size === size && i.color === color
+        );
+
+        let updated: CartItem[];
+        if (qty <= 0) {
+          updated = prev.filter(
+            (i) => !(i.product.id === productId && i.size === size && i.color === color)
+          );
+          if (existing) tryRelease(existing.variantId, existing.quantity);
+        } else {
+          updated = prev.map((i) =>
+            i.product.id === productId && i.size === size && i.color === color
+              ? { ...i, quantity: qty }
+              : i
+          );
+          if (existing) {
+            const delta = qty - existing.quantity;
+            if (delta > 0) tryReserve(existing.variantId, delta);
+            else if (delta < 0) tryRelease(existing.variantId, Math.abs(delta));
+          }
         }
         AsyncStorage.setItem("cart", JSON.stringify(updated));
         return updated;
@@ -389,38 +462,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const removeFromCart = useCallback((productId: string, size: string, color: string) => {
-    setCart((prev) => {
-      const updated = prev.filter(
-        (i) => !(i.product.id === productId && i.size === size && i.color === color)
-      );
-      AsyncStorage.setItem("cart", JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  const updateCartQty = useCallback(
-    (productId: string, size: string, color: string, qty: number) => {
-      setCart((prev) => {
-        const updated =
-          qty <= 0
-            ? prev.filter(
-                (i) => !(i.product.id === productId && i.size === size && i.color === color)
-              )
-            : prev.map((i) =>
-                i.product.id === productId && i.size === size && i.color === color
-                  ? { ...i, quantity: qty }
-                  : i
-              );
-        AsyncStorage.setItem("cart", JSON.stringify(updated));
-        return updated;
-      });
-    },
-    []
-  );
-
   const clearCart = useCallback(() => {
-    setCart([]);
+    setCart((prev) => {
+      const variantIds = prev
+        .filter((i) => i.variantId)
+        .map((i) => i.variantId as string);
+      if (variantIds.length > 0) {
+        isAuthenticated().then((authed) => {
+          if (authed) api.cart.releaseAll(variantIds).catch(() => {});
+        });
+      }
+      return [];
+    });
     AsyncStorage.removeItem("cart");
   }, []);
 
@@ -438,6 +491,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (orderData: Omit<Order, "id" | "createdAt" | "updatedAt">): Promise<Order> => {
       const backendItems = orderData.items.map((item) => ({
         productId: item.product.id,
+        variantId: item.variantId,
         productName: item.product.name,
         productPrice: item.product.discountedPrice,
         size: item.size,

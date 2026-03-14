@@ -7,6 +7,7 @@ import analyticsRouter from "./analytics.js";
 import usersRouter from "./users.js";
 import uploadRouter from "./upload.js";
 import metricsRouter from "./metrics-route.js";
+import cartRouter from "./cart.js";
 
 const router: IRouter = Router();
 
@@ -17,6 +18,7 @@ router.use("/orders", ordersRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/users", usersRouter);
 router.use("/upload", uploadRouter);
+router.use("/cart", cartRouter);
 
 export { metricsRouter };
 export default router;

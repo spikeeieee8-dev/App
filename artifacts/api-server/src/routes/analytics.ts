@@ -2,19 +2,43 @@ import { Router } from "express";
 import { eq, sql, desc, gte, and } from "drizzle-orm";
 import { db, schema } from "../lib/db.js";
 import { requireAdmin } from "../middlewares/auth.js";
+import { cacheGet, cacheSet } from "../lib/cache.js";
 
 const router = Router();
 
+const ANALYTICS_CACHE_KEY = "analytics:dashboard";
+const ANALYTICS_CACHE_TTL = 60;
+
 router.get("/", requireAdmin, async (_req, res) => {
   try {
+    const cached = await cacheGet<object>(ANALYTICS_CACHE_KEY);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
+
     const [revenueRow] = await db
       .select({
         totalRevenue: sql<number>`COALESCE(SUM(${schema.orders.total}), 0)`,
-        totalProfit: sql<number>`COALESCE(SUM(${schema.orders.total} - ${schema.orders.shippingCost}), 0)`,
+        totalShipping: sql<number>`COALESCE(SUM(${schema.orders.shippingCost}), 0)`,
         totalOrders: sql<number>`COUNT(*)`,
       })
       .from(schema.orders)
       .where(eq(schema.orders.status, "delivered"));
+
+    const [costRow] = await db
+      .select({
+        totalCost: sql<number>`COALESCE(SUM(${schema.orderItems.quantity} * ${schema.products.costPrice}), 0)`,
+      })
+      .from(schema.orderItems)
+      .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+      .innerJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
+      .where(eq(schema.orders.status, "delivered"));
+
+    const totalRevenue = Number(revenueRow?.totalRevenue ?? 0);
+    const totalShipping = Number(revenueRow?.totalShipping ?? 0);
+    const totalCost = Number(costRow?.totalCost ?? 0);
+    const totalProfit = totalRevenue - totalShipping - totalCost;
 
     const [allOrdersRow] = await db
       .select({ count: sql<number>`COUNT(*)` })
@@ -85,9 +109,9 @@ router.get("/", requireAdmin, async (_req, res) => {
       .orderBy(schema.productVariants.stock)
       .limit(20);
 
-    res.json({
-      totalRevenue: Number(revenueRow?.totalRevenue ?? 0),
-      totalProfit: Number(revenueRow?.totalProfit ?? 0),
+    const result = {
+      totalRevenue,
+      totalProfit,
       totalOrders: Number(allOrdersRow?.count ?? 0),
       deliveredOrders: Number(revenueRow?.totalOrders ?? 0),
       pendingOrders: Number(pendingRow?.count ?? 0),
@@ -97,7 +121,10 @@ router.get("/", requireAdmin, async (_req, res) => {
       topProducts,
       recentOrders,
       lowStockAlerts: lowStockVariants,
-    });
+    };
+
+    await cacheSet(ANALYTICS_CACHE_KEY, result, ANALYTICS_CACHE_TTL);
+    res.json(result);
   } catch (err) {
     console.error("Analytics error:", err);
     res.status(500).json({ error: "Failed to fetch analytics" });
