@@ -6,3 +6,9 @@ id = "aVHSFbylToLcAnBOgs1zN"
 uri = "file://ALMERA_GUIDE.md"
 type = "text"
 title = "Almera — Integration & Build Guide"
+
+[[outputs]]
+id = "DE9e19B0XfVbITIKjokdh"
+uri = "file://BACKEND_API.md"
+type = "text"
+title = "Almera Backend API Documentation"
