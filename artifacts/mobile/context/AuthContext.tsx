@@ -18,6 +18,7 @@ type AuthContextType = {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (accessToken: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (name: string, phone?: string) => Promise<void>;
@@ -67,6 +68,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem("auth_user", JSON.stringify(user));
     } catch (e: any) {
       setError(e.message || "Login failed");
+      throw e;
+    }
+  }, []);
+
+  const loginWithGoogle = useCallback(async (accessToken: string) => {
+    setError(null);
+    try {
+      const { user, token } = await api.auth.googleAuth(accessToken);
+      setUser(user);
+      setToken(token);
+      await AsyncStorage.setItem("auth_token", token);
+      await AsyncStorage.setItem("auth_user", JSON.stringify(user));
+    } catch (e: any) {
+      setError(e.message || "Google login failed");
       throw e;
     }
   }, []);
@@ -129,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user, token, isLoading,
       isAuthenticated: !!user,
       isAdmin: user?.role === "admin",
-      login, register, logout, updateProfile, changePassword, refreshUser,
+      login, loginWithGoogle, register, logout, updateProfile, changePassword, refreshUser,
       error, clearError,
     }}>
       {children}

@@ -1,7 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View, useColorScheme,
@@ -10,8 +12,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 
+WebBrowser.maybeCompleteAuthSession();
+
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB;
+
 export default function LoginScreen() {
-  const { login, error, clearError, isLoading } = useAuth();
+  const { login, loginWithGoogle, error, clearError } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const theme = isDark ? Colors.dark : Colors.light;
@@ -21,6 +27,29 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: GOOGLE_WEB_CLIENT_ID,
+  });
+
+  useEffect(() => {
+    if (response?.type === "success" && response.authentication?.accessToken) {
+      handleGoogleToken(response.authentication.accessToken);
+    }
+  }, [response]);
+
+  const handleGoogleToken = async (accessToken: string) => {
+    setGoogleLoading(true);
+    clearError();
+    try {
+      await loginWithGoogle(accessToken);
+      router.replace("/(tabs)");
+    } catch {
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) return;
@@ -55,6 +84,31 @@ export default function LoginScreen() {
           <View style={styles.errorBanner}>
             <Feather name="alert-circle" size={14} color={Colors.errorRed} />
             <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {GOOGLE_WEB_CLIENT_ID && (
+          <Pressable
+            style={[styles.googleBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, opacity: googleLoading ? 0.7 : 1 }]}
+            onPress={() => promptAsync()}
+            disabled={!request || googleLoading}
+          >
+            {googleLoading ? (
+              <ActivityIndicator size="small" color={theme.text} />
+            ) : (
+              <>
+                <Text style={styles.googleIcon}>G</Text>
+                <Text style={[styles.googleBtnText, { color: theme.text }]}>Continue with Google</Text>
+              </>
+            )}
+          </Pressable>
+        )}
+
+        {GOOGLE_WEB_CLIENT_ID && (
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            <Text style={[styles.dividerText, { color: theme.textSecondary }]}>or</Text>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
           </View>
         )}
 
@@ -104,12 +158,6 @@ export default function LoginScreen() {
               <Text style={styles.loginBtnText}>Sign In</Text>
             )}
           </Pressable>
-
-          <View style={styles.demoRow}>
-            <Text style={[styles.demoText, { color: theme.textSecondary }]}>
-              Demo: admin@almera.pk / admin123
-            </Text>
-          </View>
         </View>
 
         <View style={styles.signupRow}>
@@ -140,6 +188,15 @@ const styles = StyleSheet.create({
     padding: 12, marginBottom: 16, borderWidth: 1, borderColor: Colors.errorRed + "40",
   },
   errorText: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.errorRed, flex: 1 },
+  googleBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    borderWidth: 1, borderRadius: 14, paddingVertical: 14, marginBottom: 4,
+  },
+  googleIcon: { fontFamily: "Inter_700Bold", fontSize: 16, color: "#4285F4" },
+  googleBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 14 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontFamily: "Inter_400Regular", fontSize: 12 },
   form: { gap: 16 },
   fieldGroup: { gap: 6 },
   label: { fontFamily: "Inter_500Medium", fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase" },
@@ -153,8 +210,6 @@ const styles = StyleSheet.create({
     alignItems: "center", marginTop: 8,
   },
   loginBtnText: { fontFamily: "Inter_700Bold", fontSize: 16, color: Colors.charcoal },
-  demoRow: { alignItems: "center" },
-  demoText: { fontFamily: "Inter_400Regular", fontSize: 12 },
   signupRow: { flexDirection: "row", justifyContent: "center", marginTop: 28 },
   signupText: { fontFamily: "Inter_400Regular", fontSize: 14 },
   signupLink: { fontFamily: "Inter_600SemiBold", fontSize: 14 },

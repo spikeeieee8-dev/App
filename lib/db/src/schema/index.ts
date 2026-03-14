@@ -20,6 +20,7 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     phone: varchar("phone", { length: 20 }),
     role: varchar("role", { length: 10 }).notNull().default("user"),
+    googleId: text("google_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [index("users_email_idx").on(t.email)]

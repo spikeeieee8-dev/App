@@ -58,6 +58,11 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ currentPassword, newPassword }),
       }, true),
+    googleAuth: (accessToken: string) =>
+      request<{ user: any; token: string }>("/auth/google", {
+        method: "POST",
+        body: JSON.stringify({ accessToken }),
+      }),
   },
 
   products: {

@@ -166,4 +166,43 @@ router.post("/logout", requireAuth, (_req, res) => {
   res.json({ success: true });
 });
 
+router.post("/google", async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+    if (!accessToken) {
+      res.status(400).json({ error: "Access token is required" });
+      return;
+    }
+    const googleRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
+    if (!googleRes.ok) {
+      res.status(401).json({ error: "Invalid Google token" });
+      return;
+    }
+    const googleUser = await googleRes.json() as { sub: string; email: string; name: string; picture?: string };
+    if (!googleUser.email) {
+      res.status(400).json({ error: "No email from Google" });
+      return;
+    }
+    const existing = await db.select().from(schema.users).where(eq(schema.users.email, googleUser.email.toLowerCase())).limit(1);
+    let user: typeof schema.users.$inferSelect;
+    if (existing.length > 0) {
+      [user] = await db.update(schema.users).set({ googleId: googleUser.sub }).where(eq(schema.users.id, existing[0].id)).returning();
+    } else {
+      const dummyHash = await import("bcrypt").then(b => b.default.hash(Math.random().toString(36), 10));
+      [user] = await db.insert(schema.users).values({
+        name: googleUser.name || googleUser.email.split("@")[0],
+        email: googleUser.email.toLowerCase(),
+        passwordHash: dummyHash,
+        googleId: googleUser.sub,
+        role: "user",
+      }).returning();
+    }
+    const token = signToken({ userId: user.id, role: user.role, email: user.email });
+    res.json({ user: safeUser(user), token });
+  } catch (err) {
+    console.error("Google auth error:", err);
+    res.status(500).json({ error: "Google login failed" });
+  }
+});
+
 export default router;
