@@ -4,28 +4,17 @@ import { requireAdmin } from "../middlewares/auth.js";
 
 const router = Router();
 
-router.get("/", requireAdmin, (_req, res) => {
-  const summary = store.analytics.summary();
-  res.json(summary);
-});
-
-router.get("/users", requireAdmin, (_req, res) => {
-  const users = store.users.list().map(({ passwordHash: _, ...u }) => u);
-  res.json({ users, total: users.length });
-});
-
-router.delete("/users/:id", requireAdmin, (req, res) => {
+router.delete("/:id", requireAdmin, (req, res) => {
   const user = store.users.findById(req.params.id);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  const deleted = store.users.delete(req.params.id);
-  if (!deleted) { res.status(500).json({ error: "Failed to delete user" }); return; }
+  store.users.delete(req.params.id);
   res.json({ success: true });
 });
 
-router.patch("/users/:id/role", requireAdmin, (req, res) => {
+router.patch("/:id/role", requireAdmin, (req, res) => {
   const { role } = req.body;
   if (role !== "user" && role !== "admin") {
-    res.status(400).json({ error: "Role must be 'user' or 'admin'" }); return;
+    res.status(400).json({ error: "Role must be user or admin" }); return;
   }
   const user = store.users.update(req.params.id, { role });
   if (!user) { res.status(404).json({ error: "User not found" }); return; }

@@ -88,5 +88,11 @@ export const api = {
   analytics: {
     summary: () => request<any>("/analytics", {}, true),
     users: () => request<{ users: any[]; total: number }>("/analytics/users", {}, true),
+    deleteUser: (id: string) => request<{ success: boolean }>(`/analytics/users/${id}`, { method: "DELETE" }, true),
+    changeRole: (id: string, role: "user" | "admin") =>
+      request<{ user: any }>(`/analytics/users/${id}/role`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      }, true),
   },
 };

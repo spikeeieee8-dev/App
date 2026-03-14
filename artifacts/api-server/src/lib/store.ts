@@ -185,6 +185,7 @@ export const store = {
       return updated;
     },
     list: () => [...users.values()],
+    delete: (id: string) => users.delete(id),
     count: () => users.size,
   },
 

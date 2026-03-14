@@ -372,11 +372,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const placeOrder = useCallback(
     async (orderData: Omit<Order, "id" | "createdAt" | "updatedAt">): Promise<Order> => {
+      const backendItems = orderData.items.map((item) => ({
+        productId: item.product.id,
+        productName: item.product.name,
+        productPrice: item.product.discountedPrice,
+        size: item.size,
+        color: item.color,
+        quantity: item.quantity,
+      }));
+
+      const { api } = await import("@/services/api");
+      const response = await api.orders.create({
+        items: backendItems,
+        subtotal: orderData.subtotal,
+        shippingCost: orderData.shippingCost,
+        total: orderData.total,
+        paymentMethod: orderData.paymentMethod,
+        paymentProofUri: orderData.paymentProofUri,
+        address: orderData.address,
+      });
+
       const order: Order = {
         ...orderData,
-        id: `ORD-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        id: response.order.id,
+        createdAt: response.order.createdAt,
+        updatedAt: response.order.updatedAt,
       };
       setOrders((prev) => {
         const updated = [order, ...prev];
