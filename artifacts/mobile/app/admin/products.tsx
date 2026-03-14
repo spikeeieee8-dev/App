@@ -32,11 +32,11 @@ export default function AdminProductsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: topInset + 12, backgroundColor: Colors.charcoal, borderBottomColor: "rgba(201,168,76,0.2)" }]}>
+      <View style={[styles.header, { paddingTop: topInset + 12, backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={Colors.offWhite} />
+          <Feather name="arrow-left" size={22} color={theme.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Product Inventory</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Product Inventory</Text>
         <Pressable style={styles.addBtn}>
           <Feather name="plus" size={20} color={Colors.gold} />
         </Pressable>

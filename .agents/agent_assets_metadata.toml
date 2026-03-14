@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "aVHSFbylToLcAnBOgs1zN"
+uri = "file://ALMERA_GUIDE.md"
+type = "text"
+title = "Almera — Integration & Build Guide"

@@ -48,6 +48,16 @@ export const api = {
       }),
     me: () => request<{ user: any }>("/auth/me", {}, true),
     logout: () => request<{ success: boolean }>("/auth/logout", { method: "POST" }, true),
+    updateProfile: (name: string, phone?: string) =>
+      request<{ user: any }>("/auth/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ name, phone }),
+      }, true),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<{ success: boolean }>("/auth/password", {
+        method: "PATCH",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      }, true),
   },
 
   products: {

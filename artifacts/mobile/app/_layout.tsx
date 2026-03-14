@@ -33,10 +33,12 @@ function RootLayoutNav() {
       <Stack.Screen name="checkout" options={{ animation: "slide_from_bottom" }} />
       <Stack.Screen name="order-success" options={{ animation: "fade" }} />
       <Stack.Screen name="order/[id]" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="account/edit" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="admin/index" options={{ animation: "slide_from_bottom" }} />
       <Stack.Screen name="admin/login" options={{ animation: "slide_from_bottom" }} />
       <Stack.Screen name="admin/products" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="admin/orders" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="admin/users" options={{ animation: "slide_from_right" }} />
     </Stack>
   );
 }

@@ -177,6 +177,13 @@ export const store = {
       users.set(user.id, user);
       return user;
     },
+    update: (id: string, data: Partial<User>) => {
+      const u = users.get(id);
+      if (!u) return null;
+      const updated = { ...u, ...data };
+      users.set(id, updated);
+      return updated;
+    },
     list: () => [...users.values()],
     count: () => users.size,
   },

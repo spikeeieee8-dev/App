@@ -87,11 +87,11 @@ export default function AdminOrdersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: topPad, backgroundColor: Colors.charcoal, borderBottomColor: "rgba(201,168,76,0.2)" }]}>
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={20} color={Colors.offWhite} />
+          <Feather name="arrow-left" size={20} color={theme.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Order Management</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Order Management</Text>
         <View style={[styles.countBadge, { backgroundColor: Colors.gold }]}>
           <Text style={styles.countBadgeText}>{orders.length}</Text>
         </View>

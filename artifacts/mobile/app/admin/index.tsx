@@ -95,13 +95,13 @@ export default function AdminDashboard() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: topPad, backgroundColor: Colors.charcoal, borderBottomColor: "rgba(201,168,76,0.25)" }]}>
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="x" size={20} color={Colors.offWhite} />
+          <Feather name="x" size={20} color={theme.text} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.adminBadge}>ADMIN</Text>
-          <Text style={styles.headerTitle}>Command Center</Text>
+          <Text style={[styles.adminBadge, { color: Colors.gold }]}>ADMIN</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Command Center</Text>
         </View>
         <View style={[styles.liveDot, { backgroundColor: Colors.successGreen }]}>
           <Text style={styles.liveDotText}>LIVE</Text>
@@ -226,6 +226,7 @@ export default function AdminDashboard() {
           {[
             { icon: "package", label: "Orders", route: "/admin/orders", color: "#3498DB" },
             { icon: "tag", label: "Products", route: "/admin/products", color: Colors.gold },
+            { icon: "users", label: "Users", route: "/admin/users", color: Colors.successGreen },
           ].map((a) => (
             <Pressable
               key={a.label}

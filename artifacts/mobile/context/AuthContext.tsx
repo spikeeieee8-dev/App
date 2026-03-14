@@ -20,6 +20,9 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (name: string, phone?: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
   error: string | null;
   clearError: () => void;
 };
@@ -83,25 +86,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    try {
-      await api.auth.logout();
-    } catch {}
+    try { await api.auth.logout(); } catch {}
     setUser(null);
     setToken(null);
     await AsyncStorage.multiRemove(["auth_token", "auth_user"]);
   }, []);
 
+  const updateProfile = useCallback(async (name: string, phone?: string) => {
+    setError(null);
+    try {
+      const { user: updated } = await api.auth.updateProfile(name, phone);
+      setUser(updated);
+      await AsyncStorage.setItem("auth_user", JSON.stringify(updated));
+    } catch (e: any) {
+      setError(e.message || "Update failed");
+      throw e;
+    }
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    setError(null);
+    try {
+      await api.auth.changePassword(currentPassword, newPassword);
+    } catch (e: any) {
+      setError(e.message || "Password change failed");
+      throw e;
+    }
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const { user: fresh } = await api.auth.me();
+      setUser(fresh);
+      await AsyncStorage.setItem("auth_user", JSON.stringify(fresh));
+    } catch {}
+  }, []);
+
   const clearError = useCallback(() => setError(null), []);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user, token, isLoading,
-        isAuthenticated: !!user,
-        isAdmin: user?.role === "admin",
-        login, register, logout, error, clearError,
-      }}
-    >
+    <AuthContext.Provider value={{
+      user, token, isLoading,
+      isAuthenticated: !!user,
+      isAdmin: user?.role === "admin",
+      login, register, logout, updateProfile, changePassword, refreshUser,
+      error, clearError,
+    }}>
       {children}
     </AuthContext.Provider>
   );

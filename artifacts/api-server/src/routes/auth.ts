@@ -50,6 +50,50 @@ router.get("/me", requireAuth, (req, res) => {
   res.json({ user: safeUser });
 });
 
+router.patch("/profile", requireAuth, (req, res) => {
+  const user = (req as any).user;
+  const { name, phone } = req.body;
+  if (!name || name.trim().length < 2) {
+    res.status(400).json({ error: "Name must be at least 2 characters" });
+    return;
+  }
+  const updated = store.users.update(user.id, {
+    name: name.trim(),
+    phone: phone?.trim() || undefined,
+  });
+  if (!updated) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const { passwordHash: _, ...safeUser } = updated;
+  res.json({ user: safeUser });
+});
+
+router.patch("/password", requireAuth, (req, res) => {
+  const user = (req as any).user;
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "Current and new password are required" });
+    return;
+  }
+  if (user.passwordHash !== store.hashPassword(currentPassword)) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: "New password must be at least 6 characters" });
+    return;
+  }
+  const updated = store.users.update(user.id, {
+    passwordHash: store.hashPassword(newPassword),
+  });
+  if (!updated) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json({ success: true });
+});
+
 router.post("/logout", requireAuth, (req, res) => {
   const token = req.headers.authorization?.replace("Bearer ", "");
   if (token) store.sessions.delete(token);
