@@ -31,7 +31,7 @@ export default function AdminLoginScreen() {
     clearError();
     try {
       await login(email.trim().toLowerCase(), password);
-      router.replace("/admin/index" as any);
+      router.replace("/admin" as any);
     } catch {
     } finally {
       setLoading(false);

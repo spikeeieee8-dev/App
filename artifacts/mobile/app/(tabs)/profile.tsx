@@ -57,7 +57,7 @@ export default function ProfileScreen() {
     ...(user?.role === "admin" ? [{
       title: "Admin",
       items: [
-        { icon: "settings", label: "Admin Dashboard", subtitle: "Manage your store", onPress: () => router.push("/admin/index" as any), isAdmin: true },
+        { icon: "settings", label: "Admin Dashboard", subtitle: "Manage your store", onPress: () => router.push("/admin" as any), isAdmin: true },
       ],
     }] : []),
     ...(isAuthenticated ? [{
