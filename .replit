@@ -51,7 +51,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/mobile run dev"
+args = "pnpm --filter @workspace/mobile run dev"
 waitForPort = 8080
 
 [agent]
