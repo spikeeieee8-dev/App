@@ -39,7 +39,7 @@ export default function ProfileScreen() {
     {
       title: "Preferences",
       items: [
-        { icon: "moon", label: "Dark Mode", subtitle: isDark ? "Currently on" : "Currently off", onPress: () => {}, isToggle: true, value: isDarkMode },
+        { icon: "moon", label: "Dark Mode", subtitle: isDark ? "Currently on" : "Currently off", onPress: () => setDarkMode(!isDarkMode), isToggle: true, value: isDarkMode },
         { icon: "bell", label: "Notifications", subtitle: "Order updates & offers", onPress: () => {} },
       ],
     },
@@ -68,6 +68,81 @@ export default function ProfileScreen() {
       ],
     }] : []),
   ];
+
+  const renderMenuRow = (item: MenuItem, idx: number, total: number) => {
+    const rowStyle = [
+      styles.menuItem,
+      idx < total - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border },
+    ];
+
+    const iconBg = item.isAdmin
+      ? Colors.gold + "18"
+      : item.isDanger
+      ? Colors.errorRed + "10"
+      : theme.backgroundSecondary;
+
+    const labelColor = item.isAdmin ? Colors.gold : item.isDanger ? Colors.errorRed : theme.text;
+    const labelFont = (item.isAdmin || item.isDanger) ? "Inter_600SemiBold" : "Inter_500Medium";
+
+    const inner = (
+      <>
+        <View style={[styles.menuIcon, { backgroundColor: iconBg }]}>
+          <Feather
+            name={item.icon as any}
+            size={15}
+            color={item.isAdmin ? Colors.gold : item.isDanger ? Colors.errorRed : theme.text}
+          />
+        </View>
+        <View style={styles.menuText}>
+          <Text style={[styles.menuLabel, { color: labelColor, fontFamily: labelFont }]}>{item.label}</Text>
+          {item.subtitle && (
+            <Text style={[styles.menuSubtitle, { color: theme.textSecondary }]}>{item.subtitle}</Text>
+          )}
+        </View>
+        {item.isToggle ? (
+          <Switch
+            value={!!item.value}
+            onValueChange={(v) => {
+              if (Platform.OS !== "web") Haptics.selectionAsync();
+              setDarkMode(v);
+            }}
+            trackColor={{ false: theme.border, true: Colors.gold }}
+            thumbColor={isDarkMode ? Colors.charcoal : "#fff"}
+          />
+        ) : (
+          <Feather name="chevron-right" size={15} color={theme.textSecondary} />
+        )}
+      </>
+    );
+
+    if (item.isToggle) {
+      return (
+        <Pressable
+          key={item.label}
+          style={rowStyle}
+          onPress={() => {
+            if (Platform.OS !== "web") Haptics.selectionAsync();
+            setDarkMode(!isDarkMode);
+          }}
+        >
+          {inner}
+        </Pressable>
+      );
+    }
+
+    return (
+      <Pressable
+        key={item.label}
+        style={rowStyle}
+        onPress={() => {
+          if (Platform.OS !== "web") Haptics.selectionAsync();
+          item.onPress();
+        }}
+      >
+        {inner}
+      </Pressable>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -124,57 +199,7 @@ export default function ProfileScreen() {
           <View key={section.title} style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>{section.title.toUpperCase()}</Text>
             <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              {section.items.map((item, idx) => (
-                <Pressable
-                  key={item.label}
-                  style={[
-                    styles.menuItem,
-                    idx < section.items.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border },
-                  ]}
-                  onPress={() => {
-                    if (!item.isToggle) {
-                      if (Platform.OS !== "web") Haptics.selectionAsync();
-                      item.onPress();
-                    }
-                  }}
-                >
-                  <View style={[styles.menuIcon, {
-                    backgroundColor: item.isAdmin
-                      ? Colors.gold + "18"
-                      : item.isDanger
-                      ? Colors.errorRed + "10"
-                      : theme.backgroundSecondary,
-                  }]}>
-                    <Feather
-                      name={item.icon as any}
-                      size={15}
-                      color={item.isAdmin ? Colors.gold : item.isDanger ? Colors.errorRed : theme.text}
-                    />
-                  </View>
-                  <View style={styles.menuText}>
-                    <Text style={[styles.menuLabel, {
-                      color: item.isAdmin ? Colors.gold : item.isDanger ? Colors.errorRed : theme.text,
-                      fontFamily: (item.isAdmin || item.isDanger) ? "Inter_600SemiBold" : "Inter_500Medium",
-                    }]}>{item.label}</Text>
-                    {item.subtitle && (
-                      <Text style={[styles.menuSubtitle, { color: theme.textSecondary }]}>{item.subtitle}</Text>
-                    )}
-                  </View>
-                  {item.isToggle ? (
-                    <Switch
-                      value={!!item.value}
-                      onValueChange={(v) => {
-                        if (Platform.OS !== "web") Haptics.selectionAsync();
-                        setDarkMode(v);
-                      }}
-                      trackColor={{ false: theme.border, true: Colors.gold }}
-                      thumbColor={isDarkMode ? Colors.charcoal : "#fff"}
-                    />
-                  ) : (
-                    <Feather name="chevron-right" size={15} color={theme.textSecondary} />
-                  )}
-                </Pressable>
-              ))}
+              {section.items.map((item, idx) => renderMenuRow(item, idx, section.items.length))}
             </View>
           </View>
         ))}
