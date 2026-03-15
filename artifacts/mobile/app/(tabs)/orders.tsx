@@ -42,11 +42,18 @@ export default function OrdersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: topInset + 16, backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        <Text style={[styles.title, { color: theme.text }]}>My Orders</Text>
-        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Track your purchases
-        </Text>
+      <View style={[styles.header, { paddingTop: topInset + 8, backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={[styles.title, { color: theme.text }]}>My Orders</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              {orders.length === 0 ? "No orders yet" : `${orders.length} order${orders.length !== 1 ? "s" : ""}`}
+            </Text>
+          </View>
+          <View style={[styles.countBadge, { backgroundColor: Colors.gold + "18" }]}>
+            <Text style={[styles.countBadgeText, { color: Colors.gold }]}>{orders.length}</Text>
+          </View>
+        </View>
       </View>
 
       {orders.length === 0 ? (
