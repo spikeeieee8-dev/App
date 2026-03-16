@@ -69,4 +69,3 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-SUPABASE_DATABASE_URL = "postgresql://postgres:goodpass@db.rpjszkuvghdkdbbysomo.supabase.co:5432/postgres"

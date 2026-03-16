@@ -4,14 +4,12 @@ import * as schema from "@workspace/db/schema";
 
 const { Pool } = pg;
 
-const dbUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
-
-if (!dbUrl) {
+if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set. Please provision a PostgreSQL database.");
 }
 
 const pool = new Pool({
-  connectionString: dbUrl,
+  connectionString: process.env.DATABASE_URL,
   max: 10,
   idleTimeoutMillis: 0,
   connectionTimeoutMillis: 10000,

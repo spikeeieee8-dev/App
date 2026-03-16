@@ -85,7 +85,7 @@ lib/
 
 ## Auth System
 
-- **Admin credentials**: spikee@almerafashion.store / asadtanoli0/ (seeded in PostgreSQL)
+- **Admin credentials**: admin@almera.pk / admin123 (seeded in PostgreSQL)
 - JWT tokens expire in 7 days
 - Rate limit: 20 login attempts per 15 minutes
 
