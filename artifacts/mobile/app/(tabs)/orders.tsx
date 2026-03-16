@@ -44,12 +44,7 @@ export default function OrdersScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 8, backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <View style={styles.headerRow}>
-          <View>
-            <Text style={[styles.title, { color: theme.text }]}>My Orders</Text>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              {orders.length === 0 ? "No orders yet" : `${orders.length} order${orders.length !== 1 ? "s" : ""}`}
-            </Text>
-          </View>
+          <Text style={[styles.title, { color: theme.text }]}>My Orders</Text>
           <View style={[styles.countBadge, { backgroundColor: Colors.gold + "18" }]}>
             <Text style={[styles.countBadgeText, { color: Colors.gold }]}>{orders.length}</Text>
           </View>
@@ -58,7 +53,7 @@ export default function OrdersScreen() {
 
       {orders.length === 0 ? (
         <View style={styles.emptyState}>
-          <Feather name="package" size={64} color={theme.textSecondary} />
+          <Feather name="package" size={56} color={theme.textSecondary} />
           <Text style={[styles.emptyTitle, { color: theme.text }]}>No orders yet</Text>
           <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
             Your order history will appear here
@@ -74,7 +69,7 @@ export default function OrdersScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={{ paddingBottom: insets.bottom + 100, padding: 16 }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100, padding: 14 }}
         >
           {orders.map((order) => {
             const statusConf = STATUS_CONFIG[order.status];
@@ -86,8 +81,8 @@ export default function OrdersScreen() {
                 onPress={() => router.push({ pathname: "/order/[id]", params: { id: order.id } })}
               >
                 <View style={styles.orderTop}>
-                  <View>
-                    <Text style={[styles.orderId, { color: theme.text }]}>{order.id}</Text>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={[styles.orderId, { color: theme.text }]} numberOfLines={1}>{order.id}</Text>
                     <Text style={[styles.orderDate, { color: theme.textSecondary }]}>
                       {new Date(order.createdAt).toLocaleDateString("en-PK", {
                         day: "numeric",
@@ -97,7 +92,7 @@ export default function OrdersScreen() {
                     </Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusConf.color + "20" }]}>
-                    <Feather name={statusConf.icon as any} size={12} color={statusConf.color} />
+                    <Feather name={statusConf.icon as any} size={11} color={statusConf.color} />
                     <Text style={[styles.statusText, { color: statusConf.color }]}>
                       {statusConf.label}
                     </Text>
@@ -133,9 +128,7 @@ export default function OrdersScreen() {
                             <View
                               style={[
                                 styles.timelineLine,
-                                {
-                                  backgroundColor: idx < currentIdx ? Colors.gold : theme.border,
-                                },
+                                { backgroundColor: idx < currentIdx ? Colors.gold : theme.border },
                               ]}
                             />
                           )}
@@ -149,17 +142,11 @@ export default function OrdersScreen() {
                   <Text style={[styles.orderItems, { color: theme.textSecondary }]}>
                     {itemCount} {itemCount === 1 ? "item" : "items"}
                   </Text>
-                  <Text style={styles.orderTotal}>
-                    Rs. {order.total.toLocaleString()}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.orderTotal}>Rs. {order.total.toLocaleString()}</Text>
+                    <Feather name="chevron-right" size={14} color={theme.textSecondary} />
+                  </View>
                 </View>
-
-                <Feather
-                  name="chevron-right"
-                  size={16}
-                  color={theme.textSecondary}
-                  style={styles.chevron}
-                />
               </Pressable>
             );
           })}
@@ -173,18 +160,27 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 10,
     borderBottomWidth: 1,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   title: {
     fontFamily: "Inter_700Bold",
-    fontSize: 28,
-    letterSpacing: -0.5,
+    fontSize: 18,
+    letterSpacing: -0.2,
   },
-  subtitle: {
-    fontFamily: "Inter_400Regular",
+  countBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  countBadgeText: {
+    fontFamily: "Inter_700Bold",
     fontSize: 13,
-    marginTop: 4,
   },
   emptyState: {
     flex: 1,
@@ -195,17 +191,17 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontFamily: "Inter_600SemiBold",
-    fontSize: 20,
+    fontSize: 18,
     marginTop: 8,
   },
   emptyText: {
     fontFamily: "Inter_400Regular",
-    fontSize: 14,
+    fontSize: 13,
     textAlign: "center",
   },
   shopBtn: {
     backgroundColor: Colors.gold,
-    paddingVertical: 14,
+    paddingVertical: 13,
     paddingHorizontal: 28,
     borderRadius: 12,
     marginTop: 8,
@@ -216,47 +212,46 @@ const styles = StyleSheet.create({
     color: Colors.charcoal,
   },
   orderCard: {
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
-    marginBottom: 12,
-    position: "relative",
+    padding: 14,
+    marginBottom: 10,
   },
   orderTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   orderId: {
     fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
+    fontSize: 13,
   },
   orderDate: {
     fontFamily: "Inter_400Regular",
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 2,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 20,
   },
   statusText: {
     fontFamily: "Inter_500Medium",
-    fontSize: 11,
+    fontSize: 10,
   },
   orderDivider: {
     height: 1,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   orderTimeline: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   timelineStep: {
     flexDirection: "row",
@@ -275,20 +270,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingRight: 24,
   },
   orderItems: {
     fontFamily: "Inter_400Regular",
-    fontSize: 13,
+    fontSize: 12,
   },
   orderTotal: {
     fontFamily: "Inter_700Bold",
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.gold,
-  },
-  chevron: {
-    position: "absolute",
-    right: 16,
-    bottom: 16,
   },
 });

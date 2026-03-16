@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View, useColorScheme,
@@ -42,7 +42,7 @@ type UpdateModal = {
 };
 
 export default function AdminOrdersScreen() {
-  const { orders, isDarkMode } = useApp();
+  const { orders, isDarkMode, refreshOrders } = useApp();
   const colorScheme = useColorScheme();
   const isDark = isDarkMode || colorScheme === "dark";
   const theme = isDark ? Colors.dark : Colors.light;
@@ -56,6 +56,17 @@ export default function AdminOrdersScreen() {
   const [notes, setNotes] = useState("");
   const [updating, setUpdating] = useState(false);
   const [updatedOrders, setUpdatedOrders] = useState<Record<string, string>>({});
+  const [syncing, setSyncing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshOrders();
+      const interval = setInterval(() => {
+        refreshOrders();
+      }, 20000);
+      return () => clearInterval(interval);
+    }, [refreshOrders])
+  );
 
   const filtered = filter === "all" ? orders : orders.filter((o) => o.status === filter);
 
@@ -70,12 +81,21 @@ export default function AdminOrdersScreen() {
       });
       setUpdatedOrders((prev) => ({ ...prev, [modal.orderId]: modal.targetStatus }));
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSyncing(true);
+      await refreshOrders();
+      setSyncing(false);
     } catch (e) {
     } finally {
       setUpdating(false);
       setModal(null);
       setCourierName(""); setTrackingId(""); setNotes("");
     }
+  };
+
+  const handleManualRefresh = async () => {
+    setSyncing(true);
+    await refreshOrders();
+    setSyncing(false);
   };
 
   const getOrderStatus = (order: Order): string => updatedOrders[order.id] || order.status;
@@ -92,9 +112,12 @@ export default function AdminOrdersScreen() {
           <Feather name="arrow-left" size={20} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Order Management</Text>
-        <View style={[styles.countBadge, { backgroundColor: Colors.gold }]}>
-          <Text style={styles.countBadgeText}>{orders.length}</Text>
-        </View>
+        <Pressable onPress={handleManualRefresh} style={styles.refreshBtn}>
+          {syncing
+            ? <ActivityIndicator size="small" color={Colors.gold} />
+            : <Feather name="refresh-cw" size={16} color={Colors.gold} />
+          }
+        </Pressable>
       </View>
 
       <ScrollView
@@ -295,9 +318,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1,
   },
   backBtn: { padding: 4, width: 32 },
-  headerTitle: { fontFamily: "Inter_700Bold", fontSize: 18, color: Colors.offWhite },
-  countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  countBadgeText: { fontFamily: "Inter_700Bold", fontSize: 13, color: Colors.charcoal },
+  headerTitle: { fontFamily: "Inter_700Bold", fontSize: 18 },
+  refreshBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   filterBar: { borderBottomWidth: 1, flexGrow: 0 },
   filterRow: { paddingHorizontal: 12, paddingVertical: 8, gap: 6, alignItems: "center" },
   filterChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1 },

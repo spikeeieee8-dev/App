@@ -21,6 +21,7 @@ export default function ProfileScreen() {
 
   const initials = user?.name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "G";
   const memberSince = user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en", { month: "short", year: "numeric" }) : null;
+  const deliveredCount = orders.filter((o) => o.status === "delivered").length;
 
   type MenuItem = {
     icon: string; label: string; subtitle?: string;
@@ -32,7 +33,7 @@ export default function ProfileScreen() {
       title: "Shopping",
       items: [
         { icon: "package", label: "My Orders", subtitle: `${orders.length} total`, onPress: () => router.push("/(tabs)/orders") },
-        { icon: "heart", label: "Wishlist", subtitle: `${wishlist.length} saved`, onPress: () => {} },
+        { icon: "heart", label: "Wishlist", subtitle: `${wishlist.length} saved`, onPress: () => router.push("/wishlist" as any) },
         { icon: "map-pin", label: "Saved Addresses", subtitle: "Manage delivery addresses", onPress: () => {} },
       ],
     },
@@ -144,6 +145,12 @@ export default function ProfileScreen() {
     );
   };
 
+  const STATS = [
+    { value: orders.length, label: "Orders", icon: "package", onPress: () => router.push("/(tabs)/orders") },
+    { value: wishlist.length, label: "Wishlist", icon: "heart", onPress: () => router.push("/wishlist" as any) },
+    { value: deliveredCount, label: "Delivered", icon: "check-circle", onPress: () => router.push("/(tabs)/orders") },
+  ];
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { paddingTop: topPad, backgroundColor: theme.card, borderBottomColor: theme.border }]}>
@@ -182,16 +189,20 @@ export default function ProfileScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
         <View style={styles.statsRow}>
-          {[
-            { value: orders.length, label: "Orders", icon: "package" },
-            { value: wishlist.length, label: "Wishlist", icon: "heart" },
-            { value: orders.filter((o) => o.status === "delivered").length, label: "Delivered", icon: "check-circle" },
-          ].map((stat) => (
-            <View key={stat.label} style={[styles.statItem, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {STATS.map((stat) => (
+            <Pressable
+              key={stat.label}
+              style={[styles.statItem, { backgroundColor: theme.card, borderColor: theme.border }]}
+              onPress={() => {
+                if (Platform.OS !== "web") Haptics.selectionAsync();
+                stat.onPress();
+              }}
+            >
               <Feather name={stat.icon as any} size={16} color={Colors.gold} style={{ marginBottom: 4 }} />
               <Text style={[styles.statValue, { color: theme.text }]}>{stat.value}</Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{stat.label}</Text>
-            </View>
+              <Feather name="chevron-right" size={10} color={theme.textSecondary} style={{ marginTop: 2 }} />
+            </Pressable>
           ))}
         </View>
 
@@ -258,7 +269,7 @@ const styles = StyleSheet.create({
   signInText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: Colors.charcoal },
   statsRow: { flexDirection: "row", gap: 8, padding: 16 },
   statItem: {
-    flex: 1, borderRadius: 14, borderWidth: 1, padding: 14,
+    flex: 1, borderRadius: 14, borderWidth: 1, padding: 12,
     alignItems: "center", gap: 2,
   },
   statValue: { fontFamily: "Inter_700Bold", fontSize: 20 },

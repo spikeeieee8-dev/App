@@ -21,6 +21,20 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { api } from "@/services/api";
 
+const SUBCATEGORIES: Record<"men" | "women", string[]> = {
+  men: ["Polos", "Tees", "Shirts", "Hoodies/Sweatshirts", "Jackets", "Trousers", "Shorts", "Accessories"],
+  women: ["Dresses", "Blouses/Tops", "Kurtas", "Abayas", "Hoodies/Sweatshirts", "Jackets", "Trousers", "Accessories"],
+};
+
+const COMMON_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "One Size"];
+const COMMON_COLORS = [
+  "Midnight Black", "Ivory White", "Sand", "Charcoal", "Slate Gray", "Jet Black",
+  "Blush Rose", "Deep Burgundy", "Camel", "Ivory", "Crisp White", "Powder Blue",
+  "Cognac Brown", "Pearl White", "Champagne Gold", "Navy Blue", "Olive Green",
+];
+
+type Variant = { size: string; color: string; stock: string };
+
 type NewProduct = {
   name: string;
   description: string;
@@ -35,6 +49,8 @@ const BLANK: NewProduct = {
   name: "", description: "", category: "men", subcategory: "",
   originalPrice: "", discountedPrice: "", costPrice: "",
 };
+
+const BLANK_VARIANT: Variant = { size: "", color: "", stock: "0" };
 
 function confirmDelete(message: string): Promise<boolean> {
   if (Platform.OS === "web") {
@@ -59,6 +75,11 @@ export default function AdminProductsScreen() {
   const [filter, setFilter] = useState<"all" | "low_stock" | "men" | "women">("all");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<NewProduct>(BLANK);
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [newVariant, setNewVariant] = useState<Variant>(BLANK_VARIANT);
+  const [showSubcatDropdown, setShowSubcatDropdown] = useState(false);
+  const [showSizeDropdown, setShowSizeDropdown] = useState(false);
+  const [showColorDropdown, setShowColorDropdown] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [localDeleted, setLocalDeleted] = useState<Set<string>>(new Set());
@@ -101,6 +122,29 @@ export default function AdminProductsScreen() {
     setMediaItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const addVariant = () => {
+    if (!newVariant.size.trim() || !newVariant.color.trim()) return;
+    setVariants((prev) => [...prev, { ...newVariant }]);
+    setNewVariant(BLANK_VARIANT);
+    setShowSizeDropdown(false);
+    setShowColorDropdown(false);
+  };
+
+  const removeVariant = (idx: number) => {
+    setVariants((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const resetForm = () => {
+    setShowCreate(false);
+    setForm(BLANK);
+    setVariants([]);
+    setNewVariant(BLANK_VARIANT);
+    setMediaItems([]);
+    setShowSubcatDropdown(false);
+    setShowSizeDropdown(false);
+    setShowColorDropdown(false);
+  };
+
   const handleCreate = async () => {
     if (!form.name.trim() || !form.originalPrice || !form.discountedPrice || !form.costPrice) {
       Alert.alert("Missing Fields", "Name and all prices are required.");
@@ -128,15 +172,17 @@ export default function AdminProductsScreen() {
         originalPrice: Number(form.originalPrice),
         discountedPrice: Number(form.discountedPrice),
         costPrice: Number(form.costPrice),
-        variants: [],
+        variants: variants.map((v) => ({
+          size: v.size,
+          color: v.color,
+          stock: Number(v.stock) || 0,
+        })),
         tags: [],
         images: uploadedUrls,
         isNew: true,
         isFeatured: false,
       });
-      setShowCreate(false);
-      setForm(BLANK);
-      setMediaItems([]);
+      resetForm();
       Alert.alert("Success", "Product created. Refresh to see it in the list.");
     } catch (e: any) {
       setUploading(false);
@@ -159,6 +205,8 @@ export default function AdminProductsScreen() {
       setDeletingId(null);
     }
   };
+
+  const subcats = SUBCATEGORIES[form.category];
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -253,10 +301,10 @@ export default function AdminProductsScreen() {
         })}
       </ScrollView>
 
-      <Modal visible={showCreate} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowCreate(false)}>
+      <Modal visible={showCreate} animationType="slide" presentationStyle="pageSheet" onRequestClose={resetForm}>
         <View style={[styles.modalContainer, { backgroundColor: theme.background }]}>
           <View style={[styles.modalHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-            <Pressable onPress={() => { setShowCreate(false); setForm(BLANK); setMediaItems([]); }}>
+            <Pressable onPress={resetForm}>
               <Text style={[styles.modalCancel, { color: theme.textSecondary }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.modalTitle, { color: theme.text }]}>New Product</Text>
@@ -268,7 +316,6 @@ export default function AdminProductsScreen() {
             {([
               { label: "Product Name *", key: "name", placeholder: "e.g. Premium Merino Polo" },
               { label: "Description", key: "description", placeholder: "Short description..." },
-              { label: "Subcategory", key: "subcategory", placeholder: "e.g. Polos, Tees, Accessories" },
               { label: "Original Price (Rs.) *", key: "originalPrice", placeholder: "8500", numeric: true },
               { label: "Sale Price (Rs.) *", key: "discountedPrice", placeholder: "5999", numeric: true },
               { label: "Cost Price (Rs.) *", key: "costPrice", placeholder: "3200", numeric: true },
@@ -293,11 +340,139 @@ export default function AdminProductsScreen() {
                   <Pressable
                     key={cat}
                     style={[styles.categoryChip, { backgroundColor: form.category === cat ? Colors.gold : theme.card, borderColor: form.category === cat ? Colors.gold : theme.border }]}
-                    onPress={() => setForm((f) => ({ ...f, category: cat }))}
+                    onPress={() => setForm((f) => ({ ...f, category: cat, subcategory: "" }))}
                   >
                     <Text style={[styles.categoryChipText, { color: form.category === cat ? Colors.charcoal : theme.text }]}>{cat === "men" ? "Men" : "Women"}</Text>
                   </Pressable>
                 ))}
+              </View>
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={[styles.formLabel, { color: theme.textSecondary }]}>Subcategory</Text>
+              <Pressable
+                style={[styles.dropdown, { backgroundColor: theme.card, borderColor: theme.border }]}
+                onPress={() => setShowSubcatDropdown(!showSubcatDropdown)}
+              >
+                <Text style={[styles.dropdownText, { color: form.subcategory ? theme.text : theme.textSecondary, fontFamily: "Inter_400Regular" }]}>
+                  {form.subcategory || "Select subcategory"}
+                </Text>
+                <Feather name={showSubcatDropdown ? "chevron-up" : "chevron-down"} size={16} color={theme.textSecondary} />
+              </Pressable>
+              {showSubcatDropdown && (
+                <View style={[styles.dropdownList, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  {subcats.map((s) => (
+                    <Pressable
+                      key={s}
+                      style={[styles.dropdownOption, { borderBottomColor: theme.border }]}
+                      onPress={() => { setForm((f) => ({ ...f, subcategory: s })); setShowSubcatDropdown(false); }}
+                    >
+                      <Text style={[styles.dropdownOptionText, { color: form.subcategory === s ? Colors.gold : theme.text, fontFamily: form.subcategory === s ? "Inter_600SemiBold" : "Inter_400Regular" }]}>{s}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={[styles.formLabel, { color: theme.textSecondary }]}>Sizes & Colours (Variants)</Text>
+              {variants.length > 0 && (
+                <View style={[styles.variantsList, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                  {variants.map((v, idx) => (
+                    <View key={idx} style={[styles.variantRow, idx < variants.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
+                      <View style={styles.variantTags}>
+                        <View style={[styles.variantTag, { backgroundColor: Colors.gold + "15" }]}>
+                          <Text style={[styles.variantTagText, { color: Colors.gold }]}>{v.size}</Text>
+                        </View>
+                        <View style={[styles.variantTag, { backgroundColor: theme.card }]}>
+                          <Text style={[styles.variantTagText, { color: theme.text }]}>{v.color}</Text>
+                        </View>
+                        <View style={[styles.variantTag, { backgroundColor: theme.card }]}>
+                          <Text style={[styles.variantTagText, { color: Colors.successGreen }]}>Qty: {v.stock}</Text>
+                        </View>
+                      </View>
+                      <Pressable onPress={() => removeVariant(idx)} style={styles.variantRemove}>
+                        <Feather name="x" size={14} color={Colors.errorRed} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <View style={[styles.variantForm, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Text style={[styles.variantFormTitle, { color: theme.textSecondary }]}>Add Variant</Text>
+
+                <View style={styles.variantDropdownRow}>
+                  <View style={{ flex: 1 }}>
+                    <Pressable
+                      style={[styles.variantDropdown, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary }]}
+                      onPress={() => { setShowSizeDropdown(!showSizeDropdown); setShowColorDropdown(false); }}
+                    >
+                      <Text style={[styles.variantDropdownText, { color: newVariant.size ? theme.text : theme.textSecondary }]}>
+                        {newVariant.size || "Size"}
+                      </Text>
+                      <Feather name="chevron-down" size={13} color={theme.textSecondary} />
+                    </Pressable>
+                    {showSizeDropdown && (
+                      <View style={[styles.variantDropdownList, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                        {COMMON_SIZES.map((s) => (
+                          <Pressable
+                            key={s}
+                            style={[styles.variantDropdownOption, { borderBottomColor: theme.border }]}
+                            onPress={() => { setNewVariant((v) => ({ ...v, size: s })); setShowSizeDropdown(false); }}
+                          >
+                            <Text style={[{ color: newVariant.size === s ? Colors.gold : theme.text, fontFamily: newVariant.size === s ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 13 }]}>{s}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={{ flex: 2 }}>
+                    <Pressable
+                      style={[styles.variantDropdown, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary }]}
+                      onPress={() => { setShowColorDropdown(!showColorDropdown); setShowSizeDropdown(false); }}
+                    >
+                      <Text style={[styles.variantDropdownText, { color: newVariant.color ? theme.text : theme.textSecondary }]} numberOfLines={1}>
+                        {newVariant.color || "Colour"}
+                      </Text>
+                      <Feather name="chevron-down" size={13} color={theme.textSecondary} />
+                    </Pressable>
+                    {showColorDropdown && (
+                      <View style={[styles.variantDropdownList, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                        {COMMON_COLORS.map((c) => (
+                          <Pressable
+                            key={c}
+                            style={[styles.variantDropdownOption, { borderBottomColor: theme.border }]}
+                            onPress={() => { setNewVariant((v) => ({ ...v, color: c })); setShowColorDropdown(false); }}
+                          >
+                            <Text style={[{ color: newVariant.color === c ? Colors.gold : theme.text, fontFamily: newVariant.color === c ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 13 }]}>{c}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.variantStockRow}>
+                  <Text style={[styles.variantStockLabel, { color: theme.textSecondary }]}>Stock:</Text>
+                  <TextInput
+                    value={newVariant.stock}
+                    onChangeText={(v) => setNewVariant((prev) => ({ ...prev, stock: v }))}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.variantStockInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
+                  />
+                  <Pressable
+                    style={[styles.addVariantBtn, { backgroundColor: newVariant.size && newVariant.color ? Colors.gold : theme.backgroundSecondary }]}
+                    onPress={addVariant}
+                    disabled={!newVariant.size || !newVariant.color}
+                  >
+                    <Feather name="plus" size={16} color={newVariant.size && newVariant.color ? Colors.charcoal : theme.textSecondary} />
+                    <Text style={[styles.addVariantText, { color: newVariant.size && newVariant.color ? Colors.charcoal : theme.textSecondary }]}>Add</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
 
@@ -400,6 +575,35 @@ const styles = StyleSheet.create({
   categoryRow: { flexDirection: "row", gap: 10 },
   categoryChip: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 10, borderWidth: 1 },
   categoryChipText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  dropdown: {
+    borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+  },
+  dropdownText: { fontSize: 14, flex: 1 },
+  dropdownList: { borderWidth: 1, borderRadius: 10, marginTop: 4, overflow: "hidden" },
+  dropdownOption: { paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1 },
+  dropdownOptionText: { fontSize: 13 },
+  variantsList: { borderRadius: 10, borderWidth: 1, marginBottom: 10, overflow: "hidden" },
+  variantRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  variantTags: { flexDirection: "row", gap: 6, flex: 1, flexWrap: "wrap" },
+  variantTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  variantTagText: { fontFamily: "Inter_500Medium", fontSize: 11 },
+  variantRemove: { padding: 4 },
+  variantForm: { borderWidth: 1, borderRadius: 10, padding: 12, gap: 10 },
+  variantFormTitle: { fontFamily: "Inter_500Medium", fontSize: 11, letterSpacing: 0.5 },
+  variantDropdownRow: { flexDirection: "row", gap: 8 },
+  variantDropdown: {
+    borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+  },
+  variantDropdownText: { fontSize: 13, flex: 1 },
+  variantDropdownList: { position: "absolute", top: 44, left: 0, right: 0, zIndex: 100, borderWidth: 1, borderRadius: 8, overflow: "hidden", maxHeight: 200 },
+  variantDropdownOption: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
+  variantStockRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  variantStockLabel: { fontFamily: "Inter_500Medium", fontSize: 12 },
+  variantStockInput: { width: 70, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: "Inter_400Regular", fontSize: 13 },
+  addVariantBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: 8 },
+  addVariantText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   uploadingBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 8, marginBottom: 8 },
   uploadingText: { fontFamily: "Inter_500Medium", fontSize: 13 },
   mediaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 6 },

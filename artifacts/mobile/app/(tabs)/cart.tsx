@@ -52,7 +52,7 @@ export default function CartScreen() {
         </View>
       ) : (
         <>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 200 }}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 280 : 200 }}>
             {cart.map((item) => {
               const key = `${item.product.id}-${item.size}-${item.color}`;
               return (
@@ -117,7 +117,7 @@ export default function CartScreen() {
             </View>
           </ScrollView>
 
-          <View style={[styles.checkoutBar, { backgroundColor: theme.card, borderTopColor: theme.border, paddingBottom: insets.bottom + 8 }]}>
+          <View style={[styles.checkoutBar, { backgroundColor: theme.card, borderTopColor: theme.border, paddingBottom: insets.bottom + (Platform.OS === "web" ? 90 : 8) }]}>
             <Pressable
               style={styles.checkoutButton}
               onPress={() => { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/checkout"); }}
