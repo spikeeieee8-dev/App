@@ -8,9 +8,8 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
@@ -53,13 +52,15 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    SplashScreen.hideAsync();
+    requestNotificationPermission();
+  }, []);
+
+  useEffect(() => {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
-      requestNotificationPermission();
     }
   }, [fontsLoaded, fontError]);
-
-  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>
@@ -68,10 +69,8 @@ export default function RootLayout() {
           <AuthProvider>
             <AppProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
-                  <StatusBar style="auto" />
-                  <RootLayoutNav />
-                </KeyboardProvider>
+                <StatusBar style="auto" />
+                <RootLayoutNav />
               </GestureHandlerRootView>
             </AppProvider>
           </AuthProvider>
