@@ -1,8 +1,6 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
@@ -11,8 +9,29 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 
+const isIOS = Platform.OS === "ios";
+const isWeb = Platform.OS === "web";
+
+const NativeModules = isIOS
+  ? (() => {
+      const nativeTabs = require("expo-router/unstable-native-tabs");
+      const symbols = require("expo-symbols");
+      return { NativeTabs: nativeTabs.NativeTabs, Icon: nativeTabs.Icon, Label: nativeTabs.Label, SymbolView: symbols.SymbolView };
+    })()
+  : { NativeTabs: null, Icon: null, Label: null, SymbolView: null };
+
+const { NativeTabs, Icon, Label, SymbolView } = NativeModules;
+
+function TabIcon({ sf, feather, color }: { sf: string; feather: string; color: string }) {
+  if (isIOS && SymbolView) {
+    return <SymbolView name={sf} tintColor={color} size={22} />;
+  }
+  return <Feather name={feather as any} size={20} color={color} />;
+}
+
 function NativeTabLayout() {
   const { cartCount } = useApp();
+  if (!NativeTabs || !Icon || !Label) return <ClassicTabLayout />;
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -43,8 +62,6 @@ function ClassicTabLayout() {
   const colorScheme = useColorScheme();
   const { isDarkMode } = useApp();
   const isDark = isDarkMode || colorScheme === "dark";
-  const isIOS = Platform.OS === "ios";
-  const isWeb = Platform.OS === "web";
   const safeAreaInsets = useSafeAreaInsets();
   const theme = isDark ? Colors.dark : Colors.light;
 
@@ -83,60 +100,35 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="house" tintColor={color} size={22} />
-            ) : (
-              <Feather name="home" size={20} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon sf="house" feather="home" color={color} />,
         }}
       />
       <Tabs.Screen
         name="shop"
         options={{
           title: "Shop",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="bag" tintColor={color} size={22} />
-            ) : (
-              <Feather name="shopping-bag" size={20} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon sf="bag" feather="shopping-bag" color={color} />,
         }}
       />
       <Tabs.Screen
         name="cart"
         options={{
           title: "Cart",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="cart" tintColor={color} size={22} />
-            ) : (
-              <Feather name="shopping-cart" size={20} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon sf="cart" feather="shopping-cart" color={color} />,
         }}
       />
       <Tabs.Screen
         name="orders"
         options={{
           title: "Orders",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="shippingbox" tintColor={color} size={22} />
-            ) : (
-              <Feather name="package" size={20} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon sf="shippingbox" feather="package" color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person" tintColor={color} size={22} />
-            ) : (
-              <Feather name="user" size={20} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon sf="person" feather="user" color={color} />,
         }}
       />
     </Tabs>
@@ -144,7 +136,7 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
+  if (isIOS && isLiquidGlassAvailable()) {
     return <NativeTabLayout />;
   }
   return <ClassicTabLayout />;

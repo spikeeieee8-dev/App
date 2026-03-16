@@ -16,6 +16,49 @@ WebBrowser.maybeCompleteAuthSession();
 
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB;
 
+type GoogleAuthSectionProps = {
+  theme: any;
+  onToken: (token: string) => void;
+  loading: boolean;
+};
+
+function GoogleAuthSection({ theme, onToken, loading }: GoogleAuthSectionProps) {
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: GOOGLE_WEB_CLIENT_ID,
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+  });
+
+  useEffect(() => {
+    if (response?.type === "success" && response.authentication?.accessToken) {
+      onToken(response.authentication.accessToken);
+    }
+  }, [response]);
+
+  return (
+    <>
+      <Pressable
+        style={[styles.googleBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, opacity: loading ? 0.7 : 1 }]}
+        onPress={() => promptAsync()}
+        disabled={!request || loading}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={theme.text} />
+        ) : (
+          <>
+            <Text style={styles.googleIcon}>G</Text>
+            <Text style={[styles.googleBtnText, { color: theme.text }]}>Continue with Google</Text>
+          </>
+        )}
+      </Pressable>
+      <View style={styles.dividerRow}>
+        <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+        <Text style={[styles.dividerText, { color: theme.textSecondary }]}>or</Text>
+        <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+      </View>
+    </>
+  );
+}
+
 export default function LoginScreen() {
   const { login, loginWithGoogle, error, clearError } = useAuth();
   const colorScheme = useColorScheme();
@@ -28,16 +71,6 @@ export default function LoginScreen() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: GOOGLE_WEB_CLIENT_ID,
-  });
-
-  useEffect(() => {
-    if (response?.type === "success" && response.authentication?.accessToken) {
-      handleGoogleToken(response.authentication.accessToken);
-    }
-  }, [response]);
 
   const handleGoogleToken = async (accessToken: string) => {
     setGoogleLoading(true);
@@ -87,30 +120,13 @@ export default function LoginScreen() {
           </View>
         )}
 
-        {GOOGLE_WEB_CLIENT_ID && (
-          <Pressable
-            style={[styles.googleBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, opacity: googleLoading ? 0.7 : 1 }]}
-            onPress={() => promptAsync()}
-            disabled={!request || googleLoading}
-          >
-            {googleLoading ? (
-              <ActivityIndicator size="small" color={theme.text} />
-            ) : (
-              <>
-                <Text style={styles.googleIcon}>G</Text>
-                <Text style={[styles.googleBtnText, { color: theme.text }]}>Continue with Google</Text>
-              </>
-            )}
-          </Pressable>
-        )}
-
-        {GOOGLE_WEB_CLIENT_ID && (
-          <View style={styles.dividerRow}>
-            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-            <Text style={[styles.dividerText, { color: theme.textSecondary }]}>or</Text>
-            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-          </View>
-        )}
+        {GOOGLE_WEB_CLIENT_ID ? (
+          <GoogleAuthSection
+            theme={theme}
+            onToken={handleGoogleToken}
+            loading={googleLoading}
+          />
+        ) : null}
 
         <View style={styles.form}>
           <View style={styles.fieldGroup}>
