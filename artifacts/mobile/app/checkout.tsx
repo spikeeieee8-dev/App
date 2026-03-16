@@ -26,19 +26,87 @@ const PROVINCES = [
 ];
 
 const CITIES_BY_PROVINCE: Record<string, string[]> = {
-  Punjab: ["Lahore", "Faisalabad", "Rawalpindi", "Gujranwala", "Multan", "Sialkot", "Bahawalpur"],
-  Sindh: ["Karachi", "Hyderabad", "Sukkur", "Larkana", "Nawabshah"],
-  KPK: ["Peshawar", "Abbottabad", "Mardan", "Swat", "Kohat"],
-  Balochistan: ["Quetta", "Gwadar", "Turbat", "Khuzdar"],
+  Punjab: [
+    "Lahore", "Faisalabad", "Rawalpindi", "Gujranwala", "Multan", "Sialkot",
+    "Bahawalpur", "Sargodha", "Sheikhupura", "Jhang", "Rahim Yar Khan",
+    "Gujrat", "Kasur", "Okara", "Sahiwal", "Chiniot", "Khushab", "Mandi Bahauddin",
+    "Jhelum", "Attock", "Chakwal", "Khanewal", "Pakpattan", "Vehari",
+    "Mianwali", "Lodhran", "Bhakkar", "Hafizabad", "Narowal", "Nankana Sahib",
+    "Toba Tek Singh", "Muzaffargarh", "Layyah", "Rajanpur", "Dera Ghazi Khan",
+    "Wazirabad", "Kamoke", "Muridke", "Chunian", "Sambrial",
+  ],
+  Sindh: [
+    "Karachi", "Hyderabad", "Sukkur", "Larkana", "Nawabshah", "Mirpurkhas",
+    "Shikarpur", "Khairpur", "Jacobabad", "Dadu", "Thatta", "Badin",
+    "Tando Adam", "Tando Allahyar", "Sanghar", "Umerkot", "Tharparkar",
+    "Ghotki", "Kashmore", "Qambar Shahdadkot", "Matiari", "Jamshoro",
+    "Korangi", "Landhi", "Malir", "Clifton",
+  ],
+  KPK: [
+    "Peshawar", "Abbottabad", "Mardan", "Swat", "Kohat", "Mingora",
+    "Nowshera", "Charsadda", "Bannu", "Dera Ismail Khan", "Haripur",
+    "Mansehra", "Battagram", "Chitral", "Dir", "Buner", "Malakand",
+    "Hangu", "Karak", "Lakki Marwat", "Tank", "Shangla", "Torghar",
+    "Kohistan", "Swabi", "Timergara",
+  ],
+  Balochistan: [
+    "Quetta", "Gwadar", "Turbat", "Khuzdar", "Hub", "Chaman", "Zhob",
+    "Pishin", "Nushki", "Kalat", "Kharan", "Panjgur", "Dera Bugti",
+    "Sibi", "Loralai", "Mastung", "Washuk", "Awaran", "Kech",
+    "Musakhel", "Barkhan", "Sherani", "Harnai", "Ziarat",
+  ],
   "Islamabad (ICT)": ["Islamabad"],
-  "Gilgit-Baltistan": ["Gilgit", "Skardu"],
-  AJK: ["Muzaffarabad", "Mirpur"],
+  "Gilgit-Baltistan": [
+    "Gilgit", "Skardu", "Hunza", "Nagar", "Ghanche", "Shigar",
+    "Astore", "Diamer", "Ghizer",
+  ],
+  AJK: [
+    "Muzaffarabad", "Mirpur", "Rawalakot", "Bagh", "Kotli", "Bhimber",
+    "Haveli", "Neelum", "Hattian Bala", "Jhelum Valley",
+  ],
 };
 
 const PAYMENT_METHODS = [
   { id: "easypaisa", label: "Easypaisa", icon: "smartphone", color: "#6DC067" },
   { id: "cod", label: "Cash on Delivery", icon: "dollar-sign", color: Colors.gold },
 ];
+
+type InputFieldProps = {
+  label: string;
+  value: string;
+  onChange: (t: string) => void;
+  placeholder: string;
+  error?: string;
+  keyboardType?: any;
+  theme: typeof Colors.light;
+};
+
+function InputField({ label, value, onChange, placeholder, error, keyboardType, theme }: InputFieldProps) {
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={theme.textSecondary}
+        keyboardType={keyboardType}
+        autoCorrect={false}
+        blurOnSubmit={false}
+        style={[
+          styles.textInput,
+          {
+            backgroundColor: theme.backgroundSecondary,
+            borderColor: error ? Colors.errorRed : theme.border,
+            color: theme.text,
+            fontFamily: "Inter_400Regular",
+          },
+        ]}
+      />
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
+    </View>
+  );
+}
 
 export default function CheckoutScreen() {
   const { cart, cartTotal, placeOrder, clearCart, isDarkMode } = useApp();
@@ -131,24 +199,6 @@ export default function CheckoutScreen() {
     }
   };
 
-  const InputField = ({ label, value, onChange, placeholder, error, keyboardType }: any) => (
-    <View style={styles.fieldGroup}>
-      <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={(t) => { onChange(t); setErrors((e) => ({ ...e, [label.toLowerCase()]: "" })); }}
-        placeholder={placeholder}
-        placeholderTextColor={theme.textSecondary}
-        keyboardType={keyboardType}
-        style={[
-          styles.textInput,
-          { backgroundColor: theme.backgroundSecondary, borderColor: error ? Colors.errorRed : theme.border, color: theme.text, fontFamily: "Inter_400Regular" },
-        ]}
-      />
-      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
-    </View>
-  );
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 12, backgroundColor: theme.card, borderBottomColor: theme.border }]}>
@@ -167,9 +217,31 @@ export default function CheckoutScreen() {
         <View style={[styles.section, { borderBottomColor: theme.backgroundSecondary }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Delivery Address</Text>
 
-          <InputField label="Full Name" value={name} onChange={setName} placeholder="Muhammad Ali" error={errors.name} />
-          <InputField label="Phone" value={phone} onChange={setPhone} placeholder="03XX-XXXXXXX" keyboardType="phone-pad" error={errors.phone} />
-          <InputField label="Address" value={address} onChange={setAddress} placeholder="House #, Street, Area" error={errors.address} />
+          <InputField
+            label="Full Name"
+            value={name}
+            onChange={(t) => { setName(t); setErrors((e) => ({ ...e, name: "" })); }}
+            placeholder="Muhammad Ali"
+            error={errors.name}
+            theme={theme}
+          />
+          <InputField
+            label="Phone"
+            value={phone}
+            onChange={(t) => { setPhone(t); setErrors((e) => ({ ...e, phone: "" })); }}
+            placeholder="03XX-XXXXXXX"
+            keyboardType="phone-pad"
+            error={errors.phone}
+            theme={theme}
+          />
+          <InputField
+            label="Address"
+            value={address}
+            onChange={(t) => { setAddress(t); setErrors((e) => ({ ...e, address: "" })); }}
+            placeholder="House #, Street, Area"
+            error={errors.address}
+            theme={theme}
+          />
 
           <View style={styles.fieldGroup}>
             <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Province</Text>
@@ -189,7 +261,7 @@ export default function CheckoutScreen() {
                   <Pressable
                     key={p}
                     style={[styles.dropdownOption, { borderBottomColor: theme.border }]}
-                    onPress={() => { setSelectedProvince(p); setSelectedCity(""); setShowProvinces(false); }}
+                    onPress={() => { setSelectedProvince(p); setSelectedCity(""); setShowProvinces(false); setErrors((e) => ({ ...e, province: "" })); }}
                   >
                     <Text style={[styles.dropdownOptionText, { color: selectedProvince === p ? Colors.gold : theme.text, fontFamily: selectedProvince === p ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
                       {p}
@@ -218,7 +290,7 @@ export default function CheckoutScreen() {
                   <Pressable
                     key={c}
                     style={[styles.dropdownOption, { borderBottomColor: theme.border }]}
-                    onPress={() => { setSelectedCity(c); setShowCities(false); }}
+                    onPress={() => { setSelectedCity(c); setShowCities(false); setErrors((e) => ({ ...e, city: "" })); }}
                   >
                     <Text style={[styles.dropdownOptionText, { color: selectedCity === c ? Colors.gold : theme.text, fontFamily: selectedCity === c ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
                       {c}
@@ -398,6 +470,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: 10, marginTop: 4, overflow: "hidden",
     zIndex: 100, shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 4, elevation: 4,
+    maxHeight: 220,
   },
   dropdownOption: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   dropdownOptionText: { fontSize: 14 },
@@ -421,9 +494,7 @@ const styles = StyleSheet.create({
   accountName: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   qrBox: { alignItems: "center", gap: 8 },
   qrLabel: { fontFamily: "Inter_400Regular", fontSize: 13 },
-  qrImageWrap: {
-    borderWidth: 1, borderRadius: 14, padding: 12,
-  },
+  qrImageWrap: { borderWidth: 1, borderRadius: 14, padding: 12 },
   qrImage: { width: 160, height: 160 },
   uploadProofBtn: { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 12, minHeight: 100, overflow: "hidden" },
   uploadContent: { alignItems: "center", justifyContent: "center", padding: 24, gap: 8 },

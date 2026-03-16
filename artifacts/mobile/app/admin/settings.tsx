@@ -40,6 +40,12 @@ export default function AdminSettingsScreen() {
   const [origName, setOrigName] = useState("");
   const [origQr, setOrigQr] = useState("");
 
+  const [dbUrl, setDbUrl] = useState("");
+  const [currentMaskedUrl, setCurrentMaskedUrl] = useState("");
+  const [hasCustomDb, setHasCustomDb] = useState(false);
+  const [savingDb, setSavingDb] = useState(false);
+  const [showDbField, setShowDbField] = useState(false);
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -47,7 +53,10 @@ export default function AdminSettingsScreen() {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      const { settings } = await api.settings.getAll();
+      const [{ settings }, dbInfo] = await Promise.all([
+        api.settings.getAll(),
+        api.settings.getDatabaseUrl().catch(() => ({ hasCustomUrl: false, maskedUrl: "" })),
+      ]);
       const num = settings["easypaisa_number"] || "";
       const name = settings["easypaisa_name"] || "";
       const qr = settings["easypaisa_qr_url"] || "";
@@ -57,21 +66,12 @@ export default function AdminSettingsScreen() {
       setOrigNumber(num);
       setOrigName(name);
       setOrigQr(qr);
+      setHasCustomDb(dbInfo.hasCustomUrl);
+      setCurrentMaskedUrl(dbInfo.maskedUrl);
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to load settings");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const saveSetting = async (key: string, value: string) => {
-    setSaving(key);
-    try {
-      await api.settings.update(key, value);
-    } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to save");
-    } finally {
-      setSaving(null);
     }
   };
 
@@ -90,6 +90,56 @@ export default function AdminSettingsScreen() {
     } finally {
       setSaving(null);
     }
+  };
+
+  const handleSaveDbUrl = async () => {
+    if (!dbUrl.trim()) {
+      Alert.alert("Error", "Please enter a valid PostgreSQL connection URL.");
+      return;
+    }
+    if (!dbUrl.trim().startsWith("postgres")) {
+      Alert.alert("Error", "URL must start with postgresql:// or postgres://");
+      return;
+    }
+    setSavingDb(true);
+    try {
+      await api.settings.setDatabaseUrl(dbUrl.trim());
+      Alert.alert(
+        "Database Saved",
+        "The server is reconnecting to your new database. It will be ready in a few seconds.",
+        [{ text: "OK", onPress: () => { setDbUrl(""); setShowDbField(false); loadSettings(); } }]
+      );
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to save database URL");
+    } finally {
+      setSavingDb(false);
+    }
+  };
+
+  const handleRemoveCustomDb = () => {
+    Alert.alert(
+      "Remove Custom Database",
+      "This will revert to the default Replit database. The server will restart automatically.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove", style: "destructive",
+          onPress: async () => {
+            setSavingDb(true);
+            try {
+              await api.settings.removeDatabaseUrl();
+              Alert.alert("Done", "Reverted to default database.", [
+                { text: "OK", onPress: () => { setShowDbField(false); loadSettings(); } }
+              ]);
+            } catch (e: any) {
+              Alert.alert("Error", e.message || "Failed to remove database URL");
+            } finally {
+              setSavingDb(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handlePickQrImage = async () => {
@@ -131,7 +181,7 @@ export default function AdminSettingsScreen() {
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <Feather name="arrow-left" size={22} color={theme.text} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Payment Settings</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Settings</Text>
           <View style={{ width: 36 }} />
         </View>
         <View style={styles.loadingBox}>
@@ -152,11 +202,12 @@ export default function AdminSettingsScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={theme.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Payment Settings</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Settings</Text>
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 120 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 140 }}>
+
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.cardHeader}>
             <View style={[styles.cardIcon, { backgroundColor: "#6DC067" + "20" }]}>
@@ -205,11 +256,7 @@ export default function AdminSettingsScreen() {
 
           {easypaisaQrUrl ? (
             <View style={styles.qrPreviewBox}>
-              <Image
-                source={{ uri: easypaisaQrUrl }}
-                style={styles.qrPreview}
-                resizeMode="contain"
-              />
+              <Image source={{ uri: easypaisaQrUrl }} style={styles.qrPreview} resizeMode="contain" />
               <View style={styles.qrActions}>
                 <Pressable
                   style={[styles.qrActionBtn, { backgroundColor: Colors.gold + "15", borderColor: Colors.gold }]}
@@ -224,9 +271,7 @@ export default function AdminSettingsScreen() {
                 </Pressable>
                 <Pressable
                   style={[styles.qrActionBtn, { backgroundColor: Colors.errorRed + "15", borderColor: Colors.errorRed }]}
-                  onPress={() => {
-                    setEasypaisaQrUrl("");
-                  }}
+                  onPress={() => setEasypaisaQrUrl("")}
                 >
                   <Feather name="trash-2" size={14} color={Colors.errorRed} />
                   <Text style={[styles.qrActionText, { color: Colors.errorRed }]}>Remove</Text>
@@ -251,6 +296,88 @@ export default function AdminSettingsScreen() {
             </Pressable>
           )}
         </View>
+
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.cardIcon, { backgroundColor: "#3498DB20" }]}>
+              <Feather name="database" size={18} color="#3498DB" />
+            </View>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>Database Connection</Text>
+          </View>
+          <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]}>
+            Connect to your own PostgreSQL database. Useful when deploying on your own server.
+          </Text>
+
+          {hasCustomDb && !showDbField ? (
+            <View style={styles.dbConnected}>
+              <View style={[styles.dbStatusRow, { backgroundColor: "#27AE6015", borderColor: "#27AE6040" }]}>
+                <View style={[styles.dbDot, { backgroundColor: Colors.successGreen }]} />
+                <Text style={[styles.dbMasked, { color: theme.text }]} numberOfLines={1}>{currentMaskedUrl}</Text>
+              </View>
+              <View style={styles.dbBtns}>
+                <Pressable
+                  style={[styles.dbBtn, { backgroundColor: Colors.gold + "15", borderColor: Colors.gold }]}
+                  onPress={() => { setDbUrl(""); setShowDbField(true); }}
+                >
+                  <Feather name="edit-2" size={14} color={Colors.gold} />
+                  <Text style={[styles.dbBtnText, { color: Colors.gold }]}>Change URL</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.dbBtn, { backgroundColor: Colors.errorRed + "15", borderColor: Colors.errorRed }]}
+                  onPress={handleRemoveCustomDb}
+                  disabled={savingDb}
+                >
+                  {savingDb
+                    ? <ActivityIndicator size="small" color={Colors.errorRed} />
+                    : <Feather name="trash-2" size={14} color={Colors.errorRed} />
+                  }
+                  <Text style={[styles.dbBtnText, { color: Colors.errorRed }]}>Remove</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : showDbField || !hasCustomDb ? (
+            <View style={styles.dbInputGroup}>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>PostgreSQL Connection URL</Text>
+              <TextInput
+                value={dbUrl}
+                onChangeText={setDbUrl}
+                placeholder="postgresql://user:password@host:5432/dbname"
+                placeholderTextColor={theme.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                multiline
+                style={[styles.dbInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
+              />
+              <Text style={[styles.dbHint, { color: theme.textSecondary }]}>
+                Paste your full database URL. The server will restart automatically after saving.
+              </Text>
+              <View style={styles.dbBtns}>
+                <Pressable
+                  style={[styles.dbSaveBtn, { opacity: savingDb ? 0.7 : 1 }]}
+                  onPress={handleSaveDbUrl}
+                  disabled={savingDb}
+                >
+                  {savingDb
+                    ? <ActivityIndicator color={Colors.charcoal} />
+                    : <>
+                        <Feather name="save" size={16} color={Colors.charcoal} />
+                        <Text style={styles.dbSaveBtnText}>Save & Connect</Text>
+                      </>
+                  }
+                </Pressable>
+                {showDbField && hasCustomDb && (
+                  <Pressable
+                    style={[styles.dbCancelBtn, { borderColor: theme.border }]}
+                    onPress={() => setShowDbField(false)}
+                  >
+                    <Text style={[styles.dbCancelText, { color: theme.textSecondary }]}>Cancel</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          ) : null}
+        </View>
+
       </ScrollView>
 
       {hasChanges && (
@@ -262,7 +389,7 @@ export default function AdminSettingsScreen() {
           >
             {saving === "all"
               ? <ActivityIndicator color={Colors.charcoal} />
-              : <Text style={styles.saveBtnText}>Save Changes</Text>
+              : <Text style={styles.saveBtnText}>Save Payment Settings</Text>
             }
           </Pressable>
         </View>
@@ -297,8 +424,7 @@ const styles = StyleSheet.create({
   qrActions: { flexDirection: "row", gap: 10 },
   qrActionBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 10, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
   },
   qrActionText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   uploadQrBtn: {
@@ -307,6 +433,38 @@ const styles = StyleSheet.create({
   },
   uploadQrText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
   uploadQrSub: { fontFamily: "Inter_400Regular", fontSize: 12, textAlign: "center" },
+  dbConnected: { gap: 12 },
+  dbStatusRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    padding: 12, borderRadius: 10, borderWidth: 1,
+  },
+  dbDot: { width: 8, height: 8, borderRadius: 4 },
+  dbMasked: { fontFamily: "Inter_400Regular", fontSize: 13, flex: 1 },
+  dbBtns: { flexDirection: "row", gap: 10 },
+  dbBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, borderWidth: 1,
+    flex: 1, justifyContent: "center",
+  },
+  dbBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  dbInputGroup: { gap: 10 },
+  dbInput: {
+    borderWidth: 1, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontFamily: "Inter_400Regular", fontSize: 14,
+    minHeight: 80, textAlignVertical: "top",
+  },
+  dbHint: { fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 17 },
+  dbSaveBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    backgroundColor: Colors.gold, paddingVertical: 13, borderRadius: 12, gap: 8,
+  },
+  dbSaveBtnText: { fontFamily: "Inter_700Bold", fontSize: 14, color: Colors.charcoal },
+  dbCancelBtn: {
+    paddingHorizontal: 20, paddingVertical: 13, borderRadius: 12, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+  },
+  dbCancelText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
   saveBar: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1,

@@ -1,15 +1,31 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@workspace/db/schema";
+import { existsSync, readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set. Please provision a PostgreSQL database.");
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DB_URL_FILE = join(__dirname, "../../db.url");
+
+function getDbUrl(): string {
+  if (existsSync(DB_URL_FILE)) {
+    const url = readFileSync(DB_URL_FILE, "utf-8").trim();
+    if (url) {
+      console.log("Using database URL from db.url file");
+      return url;
+    }
+  }
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set. Please provision a PostgreSQL database.");
+  }
+  return process.env.DATABASE_URL;
 }
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: getDbUrl(),
   max: 10,
   idleTimeoutMillis: 0,
   connectionTimeoutMillis: 10000,

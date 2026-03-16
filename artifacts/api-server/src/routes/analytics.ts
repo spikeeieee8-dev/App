@@ -71,7 +71,7 @@ router.get("/", requireAdmin, async (_req, res) => {
       .groupBy(sql`DATE(${schema.orders.createdAt})`)
       .orderBy(sql`DATE(${schema.orders.createdAt})`);
 
-    const topProducts = await db
+    const topProductsRaw = await db
       .select({
         productId: schema.orderItems.productId,
         productName: schema.orderItems.productName,
@@ -82,6 +82,13 @@ router.get("/", requireAdmin, async (_req, res) => {
       .groupBy(schema.orderItems.productId, schema.orderItems.productName)
       .orderBy(desc(sql`SUM(${schema.orderItems.quantity})`))
       .limit(10);
+
+    const topProducts = topProductsRaw.map((p) => ({
+      id: p.productId,
+      name: p.productName,
+      unitsSold: Number(p.totalSold ?? 0),
+      revenue: Number(p.totalRevenue ?? 0),
+    }));
 
     const recentOrders = await db
       .select()
@@ -109,18 +116,45 @@ router.get("/", requireAdmin, async (_req, res) => {
       .orderBy(schema.productVariants.stock)
       .limit(20);
 
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const dateStr = d.toISOString().split("T")[0];
+      const dayData = dailyRevenue.find((r) => r.date === dateStr);
+      return {
+        label: d.toLocaleDateString("en", { weekday: "short" }),
+        revenue: Number(dayData?.revenue ?? 0),
+        orders: Number(dayData?.orders ?? 0),
+      };
+    });
+
+    const statusBreakdown = {
+      pending: Number(pendingRow?.count ?? 0),
+      awaiting_verification: Number(awaitingRow?.count ?? 0),
+      verified: 0,
+      dispatched: 0,
+      delivered: Number(revenueRow?.totalOrders ?? 0),
+      cancelled: 0,
+    };
+
     const result = {
       totalRevenue,
       totalProfit,
       totalOrders: Number(allOrdersRow?.count ?? 0),
+      totalProducts: 0,
+      avgOrderValue: Number(allOrdersRow?.count ?? 0) > 0 ? Math.round(totalRevenue / Number(allOrdersRow?.count ?? 1)) : 0,
       deliveredOrders: Number(revenueRow?.totalOrders ?? 0),
       pendingOrders: Number(pendingRow?.count ?? 0),
       awaitingVerification: Number(awaitingRow?.count ?? 0),
       totalUsers: Number(userCountRow?.count ?? 0),
+      last7Days,
+      statusBreakdown,
       dailyRevenue,
       topProducts,
       recentOrders,
       lowStockAlerts: lowStockVariants,
+      lowStockCount: lowStockVariants.length,
+      pendingActions: Number(pendingRow?.count ?? 0) + Number(awaitingRow?.count ?? 0),
     };
 
     await cacheSet(ANALYTICS_CACHE_KEY, result, ANALYTICS_CACHE_TTL);

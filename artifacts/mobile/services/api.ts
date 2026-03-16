@@ -132,6 +132,17 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ value }),
       }, true),
+    getDatabaseUrl: () =>
+      request<{ hasCustomUrl: boolean; maskedUrl: string }>("/settings/database-url", {}, true),
+    setDatabaseUrl: (url: string) =>
+      request<{ success: boolean; message: string }>("/settings/database-url", {
+        method: "PUT",
+        body: JSON.stringify({ url }),
+      }, true),
+    removeDatabaseUrl: () =>
+      request<{ success: boolean; message: string }>("/settings/database-url", {
+        method: "DELETE",
+      }, true),
   },
 
   upload: {

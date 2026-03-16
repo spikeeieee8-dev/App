@@ -2,6 +2,12 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../lib/db.js";
 import { requireAdmin } from "../middlewares/auth.js";
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DB_URL_FILE = join(__dirname, "../../db.url");
 
 const router = Router();
 
@@ -83,6 +89,45 @@ router.put("/:key", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("Update setting error:", err);
     res.status(500).json({ error: "Failed to update setting" });
+  }
+});
+
+router.get("/database-url", requireAdmin, (_req, res) => {
+  try {
+    const hasCustomUrl = existsSync(DB_URL_FILE);
+    let maskedUrl = "";
+    if (hasCustomUrl) {
+      const raw = readFileSync(DB_URL_FILE, "utf-8").trim();
+      maskedUrl = raw.replace(/\/\/([^:]+):([^@]+)@/, "://$1:****@");
+    }
+    res.json({ hasCustomUrl, maskedUrl });
+  } catch {
+    res.json({ hasCustomUrl: false, maskedUrl: "" });
+  }
+});
+
+router.put("/database-url", requireAdmin, (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url || typeof url !== "string" || !url.trim().startsWith("postgres")) {
+      res.status(400).json({ error: "A valid PostgreSQL connection URL is required" });
+      return;
+    }
+    writeFileSync(DB_URL_FILE, url.trim(), "utf-8");
+    res.json({ success: true, message: "Database URL saved. Restarting server..." });
+    setTimeout(() => process.exit(0), 500);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to save database URL" });
+  }
+});
+
+router.delete("/database-url", requireAdmin, (_req, res) => {
+  try {
+    if (existsSync(DB_URL_FILE)) unlinkSync(DB_URL_FILE);
+    res.json({ success: true, message: "Reverted to default database. Restarting..." });
+    setTimeout(() => process.exit(0), 500);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to remove database URL" });
   }
 });
 
