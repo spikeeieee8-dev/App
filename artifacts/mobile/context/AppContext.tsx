@@ -81,6 +81,7 @@ type AppContextType = {
   toggleWishlist: (productId: string) => void;
   placeOrder: (order: Omit<Order, "id" | "createdAt" | "updatedAt">) => Promise<Order>;
   refreshOrders: () => Promise<void>;
+  refreshProducts: () => Promise<void>;
   setDarkMode: (v: boolean) => void;
   setHasSeenWelcome: (v: boolean) => void;
   cartCount: number;
@@ -348,6 +349,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
+  const refreshProducts = useCallback(async () => {
+    try {
+      const { products: apiProducts } = await api.products.list({ active: true });
+      if (apiProducts) setProducts(apiProducts as Product[]);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -372,7 +380,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         fetchedRef.current = true;
         setProductsLoading(true);
         try {
-          const { products: apiProducts } = await api.products.list();
+          const { products: apiProducts } = await api.products.list({ active: true });
           if (apiProducts && apiProducts.length > 0) {
             setProducts(apiProducts as Product[]);
           }
@@ -552,6 +560,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toggleWishlist,
         placeOrder,
         refreshOrders,
+        refreshProducts,
         setDarkMode,
         setHasSeenWelcome,
         cartCount,

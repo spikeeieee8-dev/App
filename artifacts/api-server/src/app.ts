@@ -2,6 +2,7 @@ import express, { type Express, Request, Response, NextFunction } from "express"
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import path from "path";
 import router from "./routes/index.js";
 import { httpRequests, httpDuration } from "./lib/metrics.js";
 
@@ -65,6 +66,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/api", router);
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

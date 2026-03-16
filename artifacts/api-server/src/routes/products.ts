@@ -30,7 +30,8 @@ router.get("/", async (req, res) => {
 
     const conditions = [];
     if (category) conditions.push(eq(schema.products.category, category as string));
-    if (active !== undefined) conditions.push(eq(schema.products.isActive, active === "true"));
+    const showActive = active === undefined ? true : active === "true";
+    conditions.push(eq(schema.products.isActive, showActive));
     if (featured === "true") conditions.push(eq(schema.products.isFeatured, true));
     if (search) {
       const q = `%${search}%`;

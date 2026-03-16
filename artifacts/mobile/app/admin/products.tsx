@@ -26,13 +26,6 @@ const SUBCATEGORIES: Record<"men" | "women", string[]> = {
   women: ["Dresses", "Blouses/Tops", "Kurtas", "Abayas", "Hoodies/Sweatshirts", "Jackets", "Trousers", "Accessories"],
 };
 
-const COMMON_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "One Size"];
-const COMMON_COLORS = [
-  "Midnight Black", "Ivory White", "Sand", "Charcoal", "Slate Gray", "Jet Black",
-  "Blush Rose", "Deep Burgundy", "Camel", "Ivory", "Crisp White", "Powder Blue",
-  "Cognac Brown", "Pearl White", "Champagne Gold", "Navy Blue", "Olive Green",
-];
-
 type Variant = { size: string; color: string; stock: string };
 
 type NewProduct = {
@@ -50,7 +43,11 @@ const BLANK: NewProduct = {
   originalPrice: "", discountedPrice: "", costPrice: "",
 };
 
-const BLANK_VARIANT: Variant = { size: "", color: "", stock: "0" };
+const BLANK_VARIANT_INPUT = { sizes: "", colors: "", stock: "1" };
+
+function parseCsv(val: string): string[] {
+  return val.split(",").map((s) => s.trim()).filter(Boolean);
+}
 
 function confirmDelete(message: string): Promise<boolean> {
   if (Platform.OS === "web") {
@@ -65,7 +62,7 @@ function confirmDelete(message: string): Promise<boolean> {
 }
 
 export default function AdminProductsScreen() {
-  const { products, isDarkMode } = useApp();
+  const { products, isDarkMode, refreshProducts } = useApp();
   const colorScheme = useColorScheme();
   const isDark = isDarkMode || colorScheme === "dark";
   const theme = isDark ? Colors.dark : Colors.light;
@@ -76,10 +73,8 @@ export default function AdminProductsScreen() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<NewProduct>(BLANK);
   const [variants, setVariants] = useState<Variant[]>([]);
-  const [newVariant, setNewVariant] = useState<Variant>(BLANK_VARIANT);
+  const [variantInput, setVariantInput] = useState(BLANK_VARIANT_INPUT);
   const [showSubcatDropdown, setShowSubcatDropdown] = useState(false);
-  const [showSizeDropdown, setShowSizeDropdown] = useState(false);
-  const [showColorDropdown, setShowColorDropdown] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [localDeleted, setLocalDeleted] = useState<Set<string>>(new Set());
@@ -122,12 +117,28 @@ export default function AdminProductsScreen() {
     setMediaItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const addVariant = () => {
-    if (!newVariant.size.trim() || !newVariant.color.trim()) return;
-    setVariants((prev) => [...prev, { ...newVariant }]);
-    setNewVariant(BLANK_VARIANT);
-    setShowSizeDropdown(false);
-    setShowColorDropdown(false);
+  const addVariants = () => {
+    const sizes = parseCsv(variantInput.sizes);
+    const colors = parseCsv(variantInput.colors);
+    if (sizes.length === 0 || colors.length === 0) {
+      Alert.alert("Missing Input", "Enter at least one size and one colour, separated by commas.");
+      return;
+    }
+    const newVariants: Variant[] = [];
+    for (const size of sizes) {
+      for (const color of colors) {
+        const alreadyExists = variants.some((v) => v.size === size && v.color === color);
+        if (!alreadyExists) {
+          newVariants.push({ size, color, stock: variantInput.stock || "1" });
+        }
+      }
+    }
+    if (newVariants.length === 0) {
+      Alert.alert("Duplicate", "All size/colour combinations already exist.");
+      return;
+    }
+    setVariants((prev) => [...prev, ...newVariants]);
+    setVariantInput(BLANK_VARIANT_INPUT);
   };
 
   const removeVariant = (idx: number) => {
@@ -138,11 +149,9 @@ export default function AdminProductsScreen() {
     setShowCreate(false);
     setForm(BLANK);
     setVariants([]);
-    setNewVariant(BLANK_VARIANT);
+    setVariantInput(BLANK_VARIANT_INPUT);
     setMediaItems([]);
     setShowSubcatDropdown(false);
-    setShowSizeDropdown(false);
-    setShowColorDropdown(false);
   };
 
   const handleCreate = async () => {
@@ -158,8 +167,8 @@ export default function AdminProductsScreen() {
         try {
           const { url } = await api.upload.uploadFile(item.uri, item.name, item.mimeType, "products");
           uploadedUrls.push(url);
-        } catch {
-          Alert.alert("Warning", `Failed to upload ${item.name}. Product will be saved without it.`);
+        } catch (e: any) {
+          Alert.alert("Warning", `Failed to upload ${item.name}: ${e.message}`);
         }
       }
       setUploading(false);
@@ -183,7 +192,8 @@ export default function AdminProductsScreen() {
         isFeatured: false,
       });
       resetForm();
-      Alert.alert("Success", "Product created. Refresh to see it in the list.");
+      await refreshProducts();
+      Alert.alert("Success", "Product created successfully.");
     } catch (e: any) {
       setUploading(false);
       Alert.alert("Error", e.message || "Failed to create product");
@@ -199,6 +209,7 @@ export default function AdminProductsScreen() {
     try {
       await api.products.delete(id);
       setLocalDeleted((prev) => new Set([...prev, id]));
+      await refreshProducts();
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to delete product");
     } finally {
@@ -207,6 +218,7 @@ export default function AdminProductsScreen() {
   };
 
   const subcats = SUBCATEGORIES[form.category];
+  const canAddVariants = parseCsv(variantInput.sizes).length > 0 && parseCsv(variantInput.colors).length > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -400,79 +412,55 @@ export default function AdminProductsScreen() {
               )}
 
               <View style={[styles.variantForm, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Text style={[styles.variantFormTitle, { color: theme.textSecondary }]}>Add Variant</Text>
+                <Text style={[styles.variantFormTitle, { color: theme.textSecondary }]}>Add Variants</Text>
 
-                <View style={styles.variantDropdownRow}>
-                  <View style={{ flex: 1 }}>
-                    <Pressable
-                      style={[styles.variantDropdown, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary }]}
-                      onPress={() => { setShowSizeDropdown(!showSizeDropdown); setShowColorDropdown(false); }}
-                    >
-                      <Text style={[styles.variantDropdownText, { color: newVariant.size ? theme.text : theme.textSecondary }]}>
-                        {newVariant.size || "Size"}
-                      </Text>
-                      <Feather name="chevron-down" size={13} color={theme.textSecondary} />
-                    </Pressable>
-                    {showSizeDropdown && (
-                      <View style={[styles.variantDropdownList, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                        {COMMON_SIZES.map((s) => (
-                          <Pressable
-                            key={s}
-                            style={[styles.variantDropdownOption, { borderBottomColor: theme.border }]}
-                            onPress={() => { setNewVariant((v) => ({ ...v, size: s })); setShowSizeDropdown(false); }}
-                          >
-                            <Text style={[{ color: newVariant.size === s ? Colors.gold : theme.text, fontFamily: newVariant.size === s ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 13 }]}>{s}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </View>
+                <View style={styles.formField}>
+                  <Text style={[styles.variantFieldLabel, { color: theme.textSecondary }]}>Sizes (comma-separated)</Text>
+                  <TextInput
+                    value={variantInput.sizes}
+                    onChangeText={(v) => setVariantInput((prev) => ({ ...prev, sizes: v }))}
+                    placeholder="e.g. S, M, L, XL"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.formInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
+                  />
+                </View>
 
-                  <View style={{ flex: 2 }}>
-                    <Pressable
-                      style={[styles.variantDropdown, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary }]}
-                      onPress={() => { setShowColorDropdown(!showColorDropdown); setShowSizeDropdown(false); }}
-                    >
-                      <Text style={[styles.variantDropdownText, { color: newVariant.color ? theme.text : theme.textSecondary }]} numberOfLines={1}>
-                        {newVariant.color || "Colour"}
-                      </Text>
-                      <Feather name="chevron-down" size={13} color={theme.textSecondary} />
-                    </Pressable>
-                    {showColorDropdown && (
-                      <View style={[styles.variantDropdownList, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                        {COMMON_COLORS.map((c) => (
-                          <Pressable
-                            key={c}
-                            style={[styles.variantDropdownOption, { borderBottomColor: theme.border }]}
-                            onPress={() => { setNewVariant((v) => ({ ...v, color: c })); setShowColorDropdown(false); }}
-                          >
-                            <Text style={[{ color: newVariant.color === c ? Colors.gold : theme.text, fontFamily: newVariant.color === c ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 13 }]}>{c}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </View>
+                <View style={styles.formField}>
+                  <Text style={[styles.variantFieldLabel, { color: theme.textSecondary }]}>Colours (comma-separated)</Text>
+                  <TextInput
+                    value={variantInput.colors}
+                    onChangeText={(v) => setVariantInput((prev) => ({ ...prev, colors: v }))}
+                    placeholder="e.g. Midnight Black, Ivory White"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.formInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
+                  />
                 </View>
 
                 <View style={styles.variantStockRow}>
-                  <Text style={[styles.variantStockLabel, { color: theme.textSecondary }]}>Stock:</Text>
+                  <Text style={[styles.variantStockLabel, { color: theme.textSecondary }]}>Stock per variant:</Text>
                   <TextInput
-                    value={newVariant.stock}
-                    onChangeText={(v) => setNewVariant((prev) => ({ ...prev, stock: v }))}
+                    value={variantInput.stock}
+                    onChangeText={(v) => setVariantInput((prev) => ({ ...prev, stock: v }))}
                     keyboardType="numeric"
-                    placeholder="0"
+                    placeholder="1"
                     placeholderTextColor={theme.textSecondary}
                     style={[styles.variantStockInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
                   />
                   <Pressable
-                    style={[styles.addVariantBtn, { backgroundColor: newVariant.size && newVariant.color ? Colors.gold : theme.backgroundSecondary }]}
-                    onPress={addVariant}
-                    disabled={!newVariant.size || !newVariant.color}
+                    style={[styles.addVariantBtn, { backgroundColor: canAddVariants ? Colors.gold : theme.backgroundSecondary }]}
+                    onPress={addVariants}
+                    disabled={!canAddVariants}
                   >
-                    <Feather name="plus" size={16} color={newVariant.size && newVariant.color ? Colors.charcoal : theme.textSecondary} />
-                    <Text style={[styles.addVariantText, { color: newVariant.size && newVariant.color ? Colors.charcoal : theme.textSecondary }]}>Add</Text>
+                    <Feather name="plus" size={16} color={canAddVariants ? Colors.charcoal : theme.textSecondary} />
+                    <Text style={[styles.addVariantText, { color: canAddVariants ? Colors.charcoal : theme.textSecondary }]}>Add</Text>
                   </Pressable>
                 </View>
+
+                {(parseCsv(variantInput.sizes).length > 0 || parseCsv(variantInput.colors).length > 0) && (
+                  <Text style={[styles.variantPreviewText, { color: theme.textSecondary }]}>
+                    Will create {Math.max(parseCsv(variantInput.sizes).length, 1) * Math.max(parseCsv(variantInput.colors).length, 1)} variant(s)
+                  </Text>
+                )}
               </View>
             </View>
 
@@ -509,7 +497,7 @@ export default function AdminProductsScreen() {
                 )}
               </View>
               <Text style={[styles.mediaHint, { color: theme.textSecondary }]}>
-                Images and videos are uploaded to cloud storage when you save.
+                Images are saved and displayed immediately after upload.
               </Text>
             </View>
           </ScrollView>
@@ -591,19 +579,13 @@ const styles = StyleSheet.create({
   variantRemove: { padding: 4 },
   variantForm: { borderWidth: 1, borderRadius: 10, padding: 12, gap: 10 },
   variantFormTitle: { fontFamily: "Inter_500Medium", fontSize: 11, letterSpacing: 0.5 },
-  variantDropdownRow: { flexDirection: "row", gap: 8 },
-  variantDropdown: {
-    borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10,
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-  },
-  variantDropdownText: { fontSize: 13, flex: 1 },
-  variantDropdownList: { position: "absolute", top: 44, left: 0, right: 0, zIndex: 100, borderWidth: 1, borderRadius: 8, overflow: "hidden", maxHeight: 200 },
-  variantDropdownOption: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
+  variantFieldLabel: { fontFamily: "Inter_400Regular", fontSize: 11 },
   variantStockRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   variantStockLabel: { fontFamily: "Inter_500Medium", fontSize: 12 },
   variantStockInput: { width: 70, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: "Inter_400Regular", fontSize: 13 },
   addVariantBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: 8 },
   addVariantText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  variantPreviewText: { fontFamily: "Inter_400Regular", fontSize: 11, fontStyle: "italic" },
   uploadingBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 8, marginBottom: 8 },
   uploadingText: { fontFamily: "Inter_500Medium", fontSize: 13 },
   mediaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 6 },

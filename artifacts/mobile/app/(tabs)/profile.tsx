@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import React from "react";
 import {
-  Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme,
+  Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -41,14 +41,40 @@ export default function ProfileScreen() {
       title: "Preferences",
       items: [
         { icon: "moon", label: "Dark Mode", subtitle: isDark ? "Currently on" : "Currently off", onPress: () => setDarkMode(!isDarkMode), isToggle: true, value: isDarkMode },
-        { icon: "bell", label: "Notifications", subtitle: "Order updates & offers", onPress: () => {} },
+        {
+          icon: "bell", label: "Notifications", subtitle: "Order updates & offers",
+          onPress: () => {
+            if (Platform.OS === "web") {
+              Alert.alert("Notifications", "Open your browser or device settings to manage notifications.");
+            } else {
+              Linking.openSettings();
+            }
+          },
+        },
       ],
     },
     {
       title: "Support",
       items: [
-        { icon: "message-circle", label: "WhatsApp Support", subtitle: "Chat with us directly", onPress: () => {} },
-        { icon: "info", label: "About Almera", subtitle: "Version 1.0.0", onPress: () => {} },
+        {
+          icon: "message-circle", label: "WhatsApp Support", subtitle: "Chat with us directly",
+          onPress: () => {
+            const phone = "923001234567";
+            const message = encodeURIComponent("Hi Almera, I need help with my order.");
+            Linking.openURL(`https://wa.me/${phone}?text=${message}`).catch(() =>
+              Alert.alert("WhatsApp not available", "Please install WhatsApp or reach us at support@almera.pk")
+            );
+          },
+        },
+        {
+          icon: "info", label: "About Almera", subtitle: "Version 1.0.0",
+          onPress: () =>
+            Alert.alert(
+              "About Almera",
+              "Version 1.0.0\n\nAlmera is a premium fashion brand crafted for Pakistan — offering high-quality clothing with the elegance and comfort you deserve.\n\nFor support: support@almera.pk\nInstagram: @almera.pk",
+              [{ text: "Close" }]
+            ),
+        },
         {
           icon: "refresh-cw", label: "View Welcome Screen", subtitle: "Replay the intro",
           onPress: () => { setHasSeenWelcome(false); router.replace("/"); },
