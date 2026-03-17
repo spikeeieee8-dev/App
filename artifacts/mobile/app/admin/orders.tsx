@@ -1,9 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator, Modal, Platform, Pressable, ScrollView,
+  ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View, useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -57,6 +57,7 @@ export default function AdminOrdersScreen() {
   const [updating, setUpdating] = useState(false);
   const [updatedOrders, setUpdatedOrders] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState(false);
+  const [proofUri, setProofUri] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -200,12 +201,23 @@ export default function AdminOrdersScreen() {
                   <Text style={styles.orderTotal}>Rs. {order.total.toLocaleString()}</Text>
                 </View>
 
-                {order.status === "awaiting_verification" && (
-                  <View style={[styles.verifyBanner, { backgroundColor: "#3498DB" + "12", borderColor: "#3498DB" + "30" }]}>
+                {order.paymentProofUri ? (
+                  <Pressable
+                    style={[styles.verifyBanner, { backgroundColor: "#3498DB" + "12", borderColor: "#3498DB" + "30" }]}
+                    onPress={() => setProofUri(order.paymentProofUri!)}
+                  >
                     <Feather name="image" size={12} color="#3498DB" />
-                    <Text style={[styles.verifyText, { color: "#3498DB" }]}>Payment proof uploaded — review and verify</Text>
+                    <Text style={[styles.verifyText, { color: "#3498DB", flex: 1 }]}>
+                      {order.status === "awaiting_verification" ? "Payment proof uploaded — tap to view" : "View payment proof"}
+                    </Text>
+                    <Feather name="eye" size={12} color="#3498DB" />
+                  </Pressable>
+                ) : order.status === "awaiting_verification" ? (
+                  <View style={[styles.verifyBanner, { backgroundColor: "#F39C12" + "12", borderColor: "#F39C12" + "30" }]}>
+                    <Feather name="alert-circle" size={12} color="#F39C12" />
+                    <Text style={[styles.verifyText, { color: "#F39C12" }]}>Awaiting payment proof from customer</Text>
                   </View>
-                )}
+                ) : null}
 
                 {nextStatuses.length > 0 && (
                   <View style={styles.actionsRow}>
@@ -241,6 +253,26 @@ export default function AdminOrdersScreen() {
           })}
         </ScrollView>
       )}
+
+      <Modal visible={!!proofUri} transparent animationType="fade" onRequestClose={() => setProofUri(null)}>
+        <Pressable style={styles.proofOverlay} onPress={() => setProofUri(null)}>
+          <View style={styles.proofContainer}>
+            <View style={[styles.proofHeader, { backgroundColor: theme.card }]}>
+              <Text style={[styles.proofTitle, { color: theme.text }]}>Payment Proof</Text>
+              <Pressable onPress={() => setProofUri(null)} style={styles.proofClose}>
+                <Feather name="x" size={20} color={theme.text} />
+              </Pressable>
+            </View>
+            {proofUri && (
+              <Image
+                source={{ uri: proofUri }}
+                style={styles.proofImage}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </Pressable>
+      </Modal>
 
       <Modal visible={!!modal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -365,4 +397,10 @@ const styles = StyleSheet.create({
   modalCancelText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
   modalConfirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: "center" },
   modalConfirmText: { fontFamily: "Inter_700Bold", fontSize: 14, color: "#fff" },
+  proofOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center", padding: 20 },
+  proofContainer: { width: "100%", maxHeight: "85%", borderRadius: 16, overflow: "hidden" },
+  proofHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 },
+  proofTitle: { fontFamily: "Inter_700Bold", fontSize: 16 },
+  proofClose: { padding: 4 },
+  proofImage: { width: "100%", height: 500, backgroundColor: "#000" },
 });

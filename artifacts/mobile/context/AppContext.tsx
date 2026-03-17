@@ -381,7 +381,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setProductsLoading(true);
         try {
           const { products: apiProducts } = await api.products.list({ active: true });
-          if (apiProducts && apiProducts.length > 0) {
+          if (apiProducts) {
             setProducts(apiProducts as Product[]);
           }
         } catch {

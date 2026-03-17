@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Alert,
   Image,
@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { Product, useApp } from "@/context/AppContext";
 import { api } from "@/services/api";
 
 const SUBCATEGORIES: Record<"men" | "women", string[]> = {
@@ -62,7 +62,7 @@ function confirmDelete(message: string): Promise<boolean> {
 }
 
 export default function AdminProductsScreen() {
-  const { products, isDarkMode, refreshProducts } = useApp();
+  const { isDarkMode, refreshProducts } = useApp();
   const colorScheme = useColorScheme();
   const isDark = isDarkMode || colorScheme === "dark";
   const theme = isDark ? Colors.dark : Colors.light;
@@ -77,19 +77,32 @@ export default function AdminProductsScreen() {
   const [showSubcatDropdown, setShowSubcatDropdown] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [localDeleted, setLocalDeleted] = useState<Set<string>>(new Set());
 
   const [mediaItems, setMediaItems] = useState<{ uri: string; type: "image" | "video"; name: string; mimeType: string }[]>([]);
   const [uploading, setUploading] = useState(false);
 
-  const filtered = products
-    .filter((p) => !localDeleted.has(p.id))
-    .filter((p) => {
-      if (filter === "low_stock") return p.variants.some((v) => v.stock <= 5);
-      if (filter === "men") return p.category === "men";
-      if (filter === "women") return p.category === "women";
-      return true;
-    });
+  const [adminProducts, setAdminProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  const fetchAdminProducts = useCallback(async () => {
+    try {
+      setLoadingProducts(true);
+      const { products: fetched } = await api.products.list({ active: true });
+      setAdminProducts(fetched || []);
+    } catch {
+    } finally {
+      setLoadingProducts(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { fetchAdminProducts(); }, [fetchAdminProducts]));
+
+  const filtered = adminProducts.filter((p) => {
+    if (filter === "low_stock") return p.variants.some((v) => v.stock <= 5);
+    if (filter === "men") return p.category === "men";
+    if (filter === "women") return p.category === "women";
+    return true;
+  });
 
   const handlePickMedia = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -192,6 +205,7 @@ export default function AdminProductsScreen() {
         isFeatured: false,
       });
       resetForm();
+      await fetchAdminProducts();
       await refreshProducts();
       Alert.alert("Success", "Product created successfully.");
     } catch (e: any) {
@@ -208,7 +222,7 @@ export default function AdminProductsScreen() {
     setDeletingId(id);
     try {
       await api.products.delete(id);
-      setLocalDeleted((prev) => new Set([...prev, id]));
+      await fetchAdminProducts();
       await refreshProducts();
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to delete product");
@@ -245,17 +259,24 @@ export default function AdminProductsScreen() {
             onPress={() => setFilter(f)}
           >
             <Text style={[styles.filterChipText, { color: filter === f ? Colors.charcoal : theme.text, fontFamily: filter === f ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
-              {f === "all" ? `All (${products.filter(p => !localDeleted.has(p.id)).length})` : f === "low_stock" ? "Low Stock" : f === "men" ? "Men" : "Women"}
+              {f === "all" ? `All (${adminProducts.length})` : f === "low_stock" ? "Low Stock" : f === "men" ? "Men" : "Women"}
             </Text>
           </Pressable>
         ))}
       </ScrollView>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
-        {filtered.length === 0 ? (
+        {loadingProducts ? (
+          <View style={styles.empty}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Loading products…</Text>
+          </View>
+        ) : filtered.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="package" size={44} color={theme.textSecondary} />
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No products found</Text>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              {adminProducts.length === 0 ? "No products yet — tap Add to create one" : "No products in this category"}
+            </Text>
           </View>
         ) : filtered.map((product) => {
           const totalStock = product.variants.reduce((s, v) => s + v.stock, 0);

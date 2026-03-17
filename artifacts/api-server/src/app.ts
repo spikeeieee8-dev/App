@@ -67,6 +67,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+app.use("/api/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/api", router);
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

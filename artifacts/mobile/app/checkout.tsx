@@ -181,6 +181,16 @@ export default function CheckoutScreen() {
     }
     setLoading(true);
     try {
+      let proofUrl: string | undefined = undefined;
+      if (paymentMethod === "easypaisa" && paymentProofUri) {
+        try {
+          const fileName = `proof_${Date.now()}.jpg`;
+          const { url } = await api.upload.uploadProof(paymentProofUri, fileName, "image/jpeg");
+          proofUrl = url;
+        } catch {
+          proofUrl = paymentProofUri;
+        }
+      }
       const order = await placeOrder({
         items: cart,
         subtotal: cartTotal,
@@ -188,7 +198,7 @@ export default function CheckoutScreen() {
         total,
         status: paymentMethod === "cod" ? "pending" : "awaiting_verification",
         paymentMethod,
-        paymentProofUri,
+        paymentProofUri: proofUrl,
         address: { name, phone, address, city: selectedCity, province: selectedProvince },
       });
       clearCart();

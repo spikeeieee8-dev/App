@@ -162,5 +162,21 @@ export const api = {
       if (!res.ok) throw new Error(data.error || "Upload failed");
       return data;
     },
+    uploadProof: async (fileUri: string, fileName: string, mimeType: string): Promise<{ url: string }> => {
+      const base = getApiBase();
+      const token = await AsyncStorage.getItem("auth_token");
+      const formData = new FormData();
+      formData.append("file", { uri: fileUri, name: fileName, type: mimeType } as any);
+      const res = await fetch(`${base}/upload/proof`, {
+        method: "POST",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      return data;
+    },
   },
 };
