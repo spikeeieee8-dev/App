@@ -50,6 +50,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "shippingbox", selected: "shippingbox.fill" }} />
         <Label>Orders</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="more">
+        <Icon sf={{ default: "ellipsis.circle", selected: "ellipsis.circle.fill" }} />
+        <Label>More</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person", selected: "person.fill" }} />
         <Label>Profile</Label>
@@ -122,6 +126,13 @@ function ClassicTabLayout() {
         options={{
           title: "Orders",
           tabBarIcon: ({ color }) => <TabIcon sf="shippingbox" feather="package" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="more"
+        options={{
+          title: "More",
+          tabBarIcon: ({ color }) => <TabIcon sf="ellipsis.circle" feather="more-horizontal" color={color} />,
         }}
       />
       <Tabs.Screen

@@ -1,17 +1,18 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme,
+  Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import { api } from "@/services/api";
 
 export default function ProfileScreen() {
-  const { isDarkMode, setDarkMode, orders, wishlist, setHasSeenWelcome } = useApp();
+  const { orders, wishlist, setHasSeenWelcome, isDarkMode } = useApp();
   const { user, logout, isAuthenticated } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = isDarkMode || colorScheme === "dark";
@@ -19,13 +20,23 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const topPad = insets.top + 8;
 
+  const [whatsappNumber, setWhatsappNumber] = useState("923001234567");
+
+  useEffect(() => {
+    api.settings.getPublic()
+      .then(({ settings }) => {
+        if ((settings as any).whatsapp_number) setWhatsappNumber((settings as any).whatsapp_number);
+      })
+      .catch(() => {});
+  }, []);
+
   const initials = user?.name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "G";
   const memberSince = user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en", { month: "short", year: "numeric" }) : null;
   const deliveredCount = orders.filter((o) => o.status === "delivered").length;
 
   type MenuItem = {
     icon: string; label: string; subtitle?: string;
-    onPress: () => void; isToggle?: boolean; isAdmin?: boolean; isDanger?: boolean; value?: boolean;
+    onPress: () => void; isAdmin?: boolean; isDanger?: boolean;
   };
 
   const sections: { title: string; items: MenuItem[] }[] = [
@@ -34,22 +45,9 @@ export default function ProfileScreen() {
       items: [
         { icon: "package", label: "My Orders", subtitle: `${orders.length} total`, onPress: () => router.push("/(tabs)/orders") },
         { icon: "heart", label: "Wishlist", subtitle: `${wishlist.length} saved`, onPress: () => router.push("/wishlist" as any) },
-        { icon: "map-pin", label: "Saved Addresses", subtitle: "Manage delivery addresses", onPress: () => {} },
-      ],
-    },
-    {
-      title: "Preferences",
-      items: [
-        { icon: "moon", label: "Dark Mode", subtitle: isDark ? "Currently on" : "Currently off", onPress: () => setDarkMode(!isDarkMode), isToggle: true, value: isDarkMode },
         {
-          icon: "bell", label: "Notifications", subtitle: "Order updates & offers",
-          onPress: () => {
-            if (Platform.OS === "web") {
-              Alert.alert("Notifications", "Open your browser or device settings to manage notifications.");
-            } else {
-              Linking.openSettings();
-            }
-          },
+          icon: "map-pin", label: "Saved Addresses", subtitle: "Delivery addresses from your orders",
+          onPress: () => router.push("/addresses" as any),
         },
       ],
     },
@@ -59,11 +57,22 @@ export default function ProfileScreen() {
         {
           icon: "message-circle", label: "WhatsApp Support", subtitle: "Chat with us directly",
           onPress: () => {
-            const phone = "923001234567";
-            const message = encodeURIComponent("Hi Almera, I need help with my order.");
-            Linking.openURL(`https://wa.me/${phone}?text=${message}`).catch(() =>
+            if (Platform.OS !== "web") Haptics.selectionAsync();
+            const msg = encodeURIComponent("Hi Almera, I need help with my order.");
+            Linking.openURL(`https://wa.me/${whatsappNumber}?text=${msg}`).catch(() =>
               Alert.alert("WhatsApp not available", "Please install WhatsApp or reach us at support@almera.pk")
             );
+          },
+        },
+        {
+          icon: "bell", label: "Notifications", subtitle: "Manage order updates & alerts",
+          onPress: () => {
+            if (Platform.OS !== "web") Haptics.selectionAsync();
+            if (Platform.OS === "web") {
+              Alert.alert("Notifications", "Open your browser settings to manage notifications.");
+            } else {
+              Linking.openSettings();
+            }
           },
         },
         {
@@ -71,7 +80,7 @@ export default function ProfileScreen() {
           onPress: () =>
             Alert.alert(
               "About Almera",
-              "Version 1.0.0\n\nAlmera is a premium fashion brand crafted for Pakistan — offering high-quality clothing with the elegance and comfort you deserve.\n\nFor support: support@almera.pk\nInstagram: @almera.pk",
+              "Version 1.0.0\n\nAlmera is a premium fashion brand crafted for Pakistan — offering high-quality clothing with the elegance and comfort you deserve.\n\nFor support: support@almera.pk",
               [{ text: "Close" }]
             ),
         },
@@ -111,8 +120,15 @@ export default function ProfileScreen() {
     const labelColor = item.isAdmin ? Colors.gold : item.isDanger ? Colors.errorRed : theme.text;
     const labelFont = (item.isAdmin || item.isDanger) ? "Inter_600SemiBold" : "Inter_500Medium";
 
-    const inner = (
-      <>
+    return (
+      <Pressable
+        key={item.label}
+        style={rowStyle}
+        onPress={() => {
+          if (Platform.OS !== "web") Haptics.selectionAsync();
+          item.onPress();
+        }}
+      >
         <View style={[styles.menuIcon, { backgroundColor: iconBg }]}>
           <Feather
             name={item.icon as any}
@@ -126,47 +142,7 @@ export default function ProfileScreen() {
             <Text style={[styles.menuSubtitle, { color: theme.textSecondary }]}>{item.subtitle}</Text>
           )}
         </View>
-        {item.isToggle ? (
-          <Switch
-            value={!!item.value}
-            onValueChange={(v) => {
-              if (Platform.OS !== "web") Haptics.selectionAsync();
-              setDarkMode(v);
-            }}
-            trackColor={{ false: theme.border, true: Colors.gold }}
-            thumbColor={isDarkMode ? Colors.charcoal : "#fff"}
-          />
-        ) : (
-          <Feather name="chevron-right" size={15} color={theme.textSecondary} />
-        )}
-      </>
-    );
-
-    if (item.isToggle) {
-      return (
-        <Pressable
-          key={item.label}
-          style={rowStyle}
-          onPress={() => {
-            if (Platform.OS !== "web") Haptics.selectionAsync();
-            setDarkMode(!isDarkMode);
-          }}
-        >
-          {inner}
-        </Pressable>
-      );
-    }
-
-    return (
-      <Pressable
-        key={item.label}
-        style={rowStyle}
-        onPress={() => {
-          if (Platform.OS !== "web") Haptics.selectionAsync();
-          item.onPress();
-        }}
-      >
-        {inner}
+        <Feather name="chevron-right" size={15} color={theme.textSecondary} />
       </Pressable>
     );
   };
