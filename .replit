@@ -69,3 +69,7 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
+R2_ACCOUNT_ID = "27f23233d7504d406c9ad874e1b471f3"
+R2_BUCKET_NAME = "almera"
+R2_PUBLIC_URL = "https://r2.almerafashion.store"
+R2_ENDPOINT = "https://27f23233d7504d406c9ad874e1b471f3.r2.cloudflarestorage.com"
