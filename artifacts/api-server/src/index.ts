@@ -27,5 +27,11 @@ if (port !== PROXY_PORT) {
   const proxyServer = http.createServer(app);
   proxyServer.listen(PROXY_PORT, () => {
     console.log(`Server also listening on port ${PROXY_PORT} (proxy bridge)`);
+  }).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${PROXY_PORT} already in use, continuing on port ${port}`);
+    } else {
+      throw err;
+    }
   });
 }
