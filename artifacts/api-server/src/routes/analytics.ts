@@ -182,6 +182,45 @@ router.get("/users", requireAdmin, async (_req, res) => {
   }
 });
 
+router.post("/users", requireAdmin, async (req, res) => {
+  try {
+    const { name, email, password, phone, role } = req.body;
+    if (!name?.trim() || !email?.trim() || !password) {
+      res.status(400).json({ error: "Name, email and password are required" });
+      return;
+    }
+    if (role && role !== "user" && role !== "admin") {
+      res.status(400).json({ error: "Role must be 'user' or 'admin'" });
+      return;
+    }
+    const [existing] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email.toLowerCase().trim()));
+    if (existing) {
+      res.status(409).json({ error: "Email already in use" });
+      return;
+    }
+    const bcrypt = await import("bcrypt");
+    const passwordHash = await bcrypt.hash(password, 12);
+    const [user] = await db.insert(schema.users).values({
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      passwordHash,
+      phone: phone?.trim() || null,
+      role: role || "user",
+    }).returning({
+      id: schema.users.id,
+      name: schema.users.name,
+      email: schema.users.email,
+      phone: schema.users.phone,
+      role: schema.users.role,
+      createdAt: schema.users.createdAt,
+    });
+    res.status(201).json({ user });
+  } catch (err) {
+    console.error("Create user error:", err);
+    res.status(500).json({ error: "Failed to create user" });
+  }
+});
+
 router.delete("/users/:id", requireAdmin, async (req, res) => {
   try {
     const [deleted] = await db

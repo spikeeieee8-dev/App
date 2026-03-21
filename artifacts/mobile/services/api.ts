@@ -104,6 +104,11 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ role }),
       }, true),
+    createUser: (data: { name: string; email: string; password: string; phone?: string; role?: "user" | "admin" }) =>
+      request<{ user: any }>("/analytics/users", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }, true),
   },
 
   cart: {

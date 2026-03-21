@@ -24,13 +24,14 @@ type Settings = {
   refund_content: string;
   store_name: string;
   store_tagline: string;
+  about_content: string;
 };
 
 const BLANK: Settings = {
   easypaisa_number: "", easypaisa_name: "", easypaisa_qr_url: "",
   whatsapp_number: "", instagram_url: "", twitter_url: "", tiktok_url: "",
   terms_content: "", privacy_content: "", refund_content: "",
-  store_name: "", store_tagline: "",
+  store_name: "", store_tagline: "", about_content: "",
 };
 
 type LegalTab = "terms" | "privacy" | "refund";
@@ -80,6 +81,7 @@ export default function AdminSettingsScreen() {
         refund_content: s.refund_content || "",
         store_name: s.store_name || "",
         store_tagline: s.store_tagline || "",
+        about_content: s.about_content || "",
       };
       setForm(loaded);
       setOrig(loaded);
@@ -273,6 +275,24 @@ export default function AdminSettingsScreen() {
           />
           {hasChanges([activeLegal.settingKey]) && (
             <SaveBtn label={`Save ${legalTab === "terms" ? "Terms" : legalTab === "privacy" ? "Privacy Policy" : "Refund Policy"}`} loading={saving === "Legal"} onPress={() => saveSection([activeLegal.settingKey], "Legal")} />
+          )}
+        </SectionCard>
+
+        {/* About Page */}
+        <SectionCard icon="info" iconColor={Colors.gold} title="About Almera Page" theme={theme}>
+          <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]}>Edit the content displayed on the About Almera page. Supports Markdown (# heading, ## subheading, **bold**, - bullet).</Text>
+          <TextInput
+            value={form.about_content}
+            onChangeText={(v) => set("about_content", v)}
+            multiline
+            numberOfLines={14}
+            placeholder={"# About Almera\n\nTell your brand story here...\n\n## Our Values\n- Quality First\n- Customer Love"}
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.legalInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
+            textAlignVertical="top"
+          />
+          {hasChanges(["about_content"]) && (
+            <SaveBtn label="Save About Page" loading={saving === "About"} onPress={() => saveSection(["about_content"], "About")} />
           )}
         </SectionCard>
 

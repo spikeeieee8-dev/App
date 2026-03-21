@@ -76,13 +76,8 @@ export default function ProfileScreen() {
           },
         },
         {
-          icon: "info", label: "About Almera", subtitle: "Version 1.0.0",
-          onPress: () =>
-            Alert.alert(
-              "About Almera",
-              "Version 1.0.0\n\nAlmera is a premium fashion brand crafted for Pakistan — offering high-quality clothing with the elegance and comfort you deserve.\n\nFor support: support@almera.pk",
-              [{ text: "Close" }]
-            ),
+          icon: "info", label: "About Almera", subtitle: "Our story & values",
+          onPress: () => router.push("/about" as any),
         },
         {
           icon: "refresh-cw", label: "View Welcome Screen", subtitle: "Replay the intro",
