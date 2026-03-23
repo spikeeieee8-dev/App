@@ -51,7 +51,7 @@ export type Order = {
   shippingCost: number;
   total: number;
   status: OrderStatus;
-  paymentMethod: "easypaid" | "jazzcash" | "cod";
+  paymentMethod: "easypaisa" | "cod";
   paymentProofUri?: string;
   address: {
     name: string;

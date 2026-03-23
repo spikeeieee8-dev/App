@@ -49,10 +49,8 @@ export default function OrderDetailScreen() {
   const currentStepIdx = STATUS_STEPS.findIndex((s) => s.key === order.status);
 
   const paymentMethodLabel =
-    order.paymentMethod === "easypaid"
+    order.paymentMethod === "easypaisa"
       ? "EasyPaisa"
-      : order.paymentMethod === "jazzcash"
-      ? "JazzCash"
       : "Cash on Delivery";
 
   return (

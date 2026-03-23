@@ -163,15 +163,19 @@ export default function MoreScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>ABOUT</Text>
             <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={[styles.row, { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
+              <Pressable
+                style={[styles.row, { borderBottomWidth: 1, borderBottomColor: theme.border }]}
+                onPress={() => { if (Platform.OS !== "web") Haptics.selectionAsync(); router.push("/about" as any); }}
+              >
                 <View style={[styles.rowIcon, { backgroundColor: Colors.gold + "18" }]}>
                   <Feather name="info" size={16} color={Colors.gold} />
                 </View>
                 <View style={styles.rowText}>
                   <Text style={[styles.rowLabel, { color: theme.text }]}>About Almera</Text>
-                  <Text style={[styles.rowSub, { color: theme.textSecondary }]}>Version 1.0.0</Text>
+                  <Text style={[styles.rowSub, { color: theme.textSecondary }]}>Our story & values</Text>
                 </View>
-              </View>
+                <Feather name="chevron-right" size={15} color={theme.textSecondary} />
+              </Pressable>
               <View style={styles.row}>
                 <View style={[styles.rowIcon, { backgroundColor: Colors.gold + "18" }]}>
                   <Feather name="mail" size={16} color={Colors.gold} />

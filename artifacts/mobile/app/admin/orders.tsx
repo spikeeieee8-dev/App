@@ -173,7 +173,7 @@ export default function AdminOrdersScreen() {
                   <View>
                     <Text style={[styles.orderId, { color: theme.text }]}>{order.id}</Text>
                     <Text style={[styles.orderMeta, { color: theme.textSecondary }]}>
-                      {new Date(order.createdAt).toLocaleDateString("en-PK", { day: "numeric", month: "short" })} · {itemCount} item{itemCount !== 1 ? "s" : ""} · {order.paymentMethod === "cod" ? "COD" : order.paymentMethod === "easypaid" ? "EasyPaisa" : "JazzCash"}
+                      {new Date(order.createdAt).toLocaleDateString("en-PK", { day: "numeric", month: "short" })} · {itemCount} item{itemCount !== 1 ? "s" : ""} · {order.paymentMethod === "cod" ? "COD" : "EasyPaisa"}
                     </Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>
